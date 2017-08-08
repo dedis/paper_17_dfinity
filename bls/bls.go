@@ -5,7 +5,7 @@ import (
 	"errors"
 
 	"github.com/dedis/kyber/abstract"
-	"github.com/dedis/kyber/pbc"
+	"github.com/dedis/paper_17_dfinity/pbc"
 )
 
 type PairingSuite interface {

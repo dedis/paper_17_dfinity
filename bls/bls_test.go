@@ -5,8 +5,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/dedis/kyber/pbc"
 	"github.com/dedis/kyber/random"
+	"github.com/dedis/paper_17_dfinity/pbc"
 )
 
 func TestBLSSig(t *testing.T) {

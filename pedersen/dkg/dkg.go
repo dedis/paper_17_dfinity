@@ -6,9 +6,9 @@ import (
 	"crypto/cipher"
 	"errors"
 
-	"github.com/dedis/kyber/abstract"
-	"github.com/dedis/kyber/share"
-	"github.com/dedis/kyber/share/pedersen/vss"
+	"github.com/dedis/paper_17_dfinity/pedersen/vss"
+	"gopkg.in/dedis/crypto.v0/abstract"
+	"gopkg.in/dedis/crypto.v0/share"
 )
 
 // DistKeyShare holds the share of a distributed key for a participant.

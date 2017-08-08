@@ -10,11 +10,11 @@ import (
 	"fmt"
 	"reflect"
 
-	"github.com/dedis/kyber/abstract"
-	"github.com/dedis/kyber/random"
-	"github.com/dedis/kyber/share"
-	"github.com/dedis/kyber/sign"
 	"github.com/dedis/protobuf"
+	"gopkg.in/dedis/crypto.v0/abstract"
+	"gopkg.in/dedis/crypto.v0/random"
+	"gopkg.in/dedis/crypto.v0/share"
+	"gopkg.in/dedis/crypto.v0/sign"
 )
 
 // Dealer encapsulates for creating and distributing the shares and for

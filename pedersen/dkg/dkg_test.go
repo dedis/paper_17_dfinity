@@ -4,13 +4,13 @@ import (
 	"crypto/rand"
 	"testing"
 
-	"github.com/dedis/kyber/abstract"
-	"github.com/dedis/kyber/ed25519"
-	"github.com/dedis/kyber/random"
-	"github.com/dedis/kyber/share"
-	"github.com/dedis/kyber/share/pedersen/vss"
+	"github.com/dedis/paper_17_dfinity/pedersen/vss"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/dedis/crypto.v0/abstract"
+	"gopkg.in/dedis/crypto.v0/ed25519"
+	"gopkg.in/dedis/crypto.v0/random"
+	"gopkg.in/dedis/crypto.v0/share"
 )
 
 var suite = ed25519.NewAES128SHA256Ed25519(false)
