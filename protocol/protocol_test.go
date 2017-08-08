@@ -15,7 +15,7 @@ func TestMain(m *testing.M) {
 }
 
 func TestDkgProtocol(test *testing.T) {
-	for _, nbrHosts := range []int{5, 7, 10} {
+	for _, nbrHosts := range []int{5, 10, 20} {
 
 		log.Lvl2("Running dkg with", nbrHosts, "hosts")
 		t := nbrHosts/2 + 1
@@ -27,13 +27,15 @@ func TestDkgProtocol(test *testing.T) {
 		cb := func(d *dkg.DistKeyShare) {
 			wg.Done()
 		}
-		// registration of the custom factory
-		onet.GlobalProtocolRegister(ProtoName, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
-			return NewProtocol(n, t, cb)
-		})
-
 		local := onet.NewLocalTest()
-		_, _, tree := local.GenBigTree(nbrHosts, nbrHosts, nbrHosts, true)
+		hosts, _, tree := local.GenBigTree(nbrHosts, nbrHosts, nbrHosts, true)
+		for _, host := range hosts {
+			// registration of the custom factory
+			host.ProtocolRegister(ProtoName, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
+				return NewProtocol(n, t, cb)
+			})
+
+		}
 
 		// Start the protocol
 		p, err := local.CreateProtocol(ProtoName, tree)
@@ -49,7 +51,7 @@ func TestDkgProtocol(test *testing.T) {
 
 		select {
 		case <-done:
-		case <-time.After(time.Second * 2):
+		case <-time.After(time.Duration(nbrHosts) * time.Second):
 			test.Fatal("could not get a DKS after two seconds")
 		}
 		local.CloseAll()

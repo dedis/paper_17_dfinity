@@ -27,6 +27,7 @@ type DkgProto struct {
 	list      []*onet.TreeNode // to avoid recomputing it
 	sentDeal  bool
 	sync.Mutex
+	done bool
 }
 
 type DealMsg struct {
@@ -74,16 +75,15 @@ func (d *DkgProto) Start() error {
 	return d.sendDeals()
 }
 
-func (d *DkgProto) OnDeal(dm *DealMsg) error {
+func (d *DkgProto) OnDeal(dm DealMsg) error {
 	d.Lock()
+	defer d.Unlock()
 	if !d.sentDeal {
 		d.sentDeal = true
-		d.Unlock()
 		if err := d.sendDeals(); err != nil {
 			return err
 		}
 	}
-	d.Unlock()
 	resp, err := d.dkg.ProcessDeal(&dm.Deal)
 	if err != nil {
 		return err
@@ -91,7 +91,10 @@ func (d *DkgProto) OnDeal(dm *DealMsg) error {
 	return d.Broadcast(resp)
 }
 
-func (d *DkgProto) OnResponse(rm *ResponseMsg) error {
+func (d *DkgProto) OnResponse(rm ResponseMsg) error {
+	d.Lock()
+	defer d.checkCertified()
+	defer d.Unlock()
 	j, err := d.dkg.ProcessResponse(&rm.Response)
 	if err != nil {
 		return err
@@ -100,10 +103,11 @@ func (d *DkgProto) OnResponse(rm *ResponseMsg) error {
 	if j != nil {
 		return d.Broadcast(j)
 	}
+
 	return nil
 }
 
-func (d *DkgProto) OnJustification(jm *JustificationMsg) error {
+func (d *DkgProto) OnJustification(jm JustificationMsg) error {
 	if err := d.dkg.ProcessJustification(&jm.Justification); err != nil {
 		return err
 	}
@@ -129,14 +133,20 @@ func (d *DkgProto) sendDeals() error {
 }
 
 func (d *DkgProto) checkCertified() {
+	d.Lock()
+	defer d.Unlock()
+	if d.done {
+		return
+	}
 	if !d.dkg.Certified() {
 		return
 	}
 	dks, err := d.dkg.DistKeyShare()
 	if err != nil {
-		log.Lvl3(d.ServerIdentity().String(), err)
+		log.Lvl2(d.ServerIdentity().String(), err)
 		return
 	}
 	d.dks = dks
 	d.dkgDoneCb(dks)
+	d.done = true
 }
