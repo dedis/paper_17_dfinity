@@ -38,11 +38,26 @@ func TestThresholdBLS(t *testing.T) {
 	dks, err := dkg.DistKeyShare()
 	require.Nil(t, err)
 
+	xiG := suite.Point().Mul(nil, dks.PriShare().V)
+	xiG2 := dks.Polynomial().Eval(dks.PriShare().I).V
+	require.Equal(t, xiG.String(), xiG2.String())
+
 	msg := []byte("Hello World")
-	tsig, err := ThresholdSign(pairing, dks, msg)
+	tsig := ThresholdSign(pairing, dks, msg)
 	require.Nil(t, err)
 
-	require.Nil(t, ThresholdVerify(pairing, dks.Polynomial(), msg, tsig))
+	require.True(t, ThresholdVerify(pairing, dks.Polynomial(), msg, tsig))
+
+	sigs := make([]*ThresholdSig, nbParticipants)
+	for i, d := range dkgs {
+		dks, err := d.DistKeyShare()
+		require.Nil(t, err)
+		sigs[i] = ThresholdSign(pairing, dks, msg)
+	}
+	tt := nbParticipants/2 + 1
+	sig, err := AggregateSignatures(pairing, dks.Polynomial(), msg, sigs, nbParticipants, tt)
+	require.Nil(t, err)
+	require.Nil(t, Verify(pairing, dks.Polynomial().Commit(), msg, sig))
 }
 
 func dkgGen() []*dkg.DistKeyGenerator {
