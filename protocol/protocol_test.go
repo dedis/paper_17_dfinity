@@ -5,17 +5,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dedis/paper_17_dfinity/pbc"
 	"github.com/dedis/paper_17_dfinity/pedersen/dkg"
 	"gopkg.in/dedis/onet.v1"
 	"gopkg.in/dedis/onet.v1/log"
+	"gopkg.in/dedis/onet.v1/network"
 )
 
 func TestMain(m *testing.M) {
+	log.TestOutput(true, 5)
 	log.MainTest(m)
 }
 
 func TestDkgProtocol(test *testing.T) {
-	for _, nbrHosts := range []int{5, 10, 20} {
+	pairing := pbc.NewPairingFp382_2()
+	network.Suite = pairing.G2()
+	//network.Suite = edwards.NewAES128SHA256Ed25519(false)
+	//network.Suite = nist.NewAES128SHA256P256()
+
+	for _, nbrHosts := range []int{5} {
 
 		log.Lvl2("Running dkg with", nbrHosts, "hosts")
 		t := nbrHosts/2 + 1

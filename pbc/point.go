@@ -6,12 +6,11 @@ import (
 	"io"
 	"runtime"
 
-	"github.com/dedis/kyber/abstract"
 	"github.com/dfinity/go-dfinity-crypto/bls"
+	"gopkg.in/dedis/crypto.v0/abstract"
 
-	"github.com/dedis/kyber/group"
-	"github.com/dedis/kyber/random"
-	"gopkg.in/dedis/kyber.v1"
+	"gopkg.in/dedis/crypto.v0/group"
+	"gopkg.in/dedis/crypto.v0/random"
 )
 
 type pointG1 struct {
@@ -207,12 +206,15 @@ func (p *pointG2) String() string {
 }
 
 func (p *pointG2) Pick(buff []byte, rand cipher.Stream) (abstract.Point, []byte) {
+	if buff != nil || len(buff) > 0 {
+		panic("point g2 don't embed yet")
+	}
+	buff = random.NonZeroBytes(32, rand)
 	if err := p.g.HashAndMapTo(buff); err != nil {
 		panic(err)
 	}
 	return p, nil
 
-	//return p.Embed(nil, rand)
 }
 
 func (p *pointG2) PickLen() int {
@@ -272,7 +274,6 @@ func (p *pointGT) Null() abstract.Point {
 
 // Base point for GT is the point computed using the pairing operation
 // over the base point of G1 and G2.
-// XXX Is this desirable ? A fixed pre-computed point would be nicer.
 // TODO precompute the pairing for each suite...
 func (p *pointGT) Base() abstract.Point {
 	g1 := p.p.G1().Point().Base()
@@ -363,7 +364,7 @@ func (p *pointGT) Set(p2 abstract.Point) abstract.Point {
 }
 
 type pbcPoint interface {
-	kyber.Marshaling
+	abstract.Marshaling
 	PickLen() int
 }
 

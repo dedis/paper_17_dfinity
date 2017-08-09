@@ -5,6 +5,7 @@ package dkg
 import (
 	"crypto/cipher"
 	"errors"
+	"fmt"
 
 	"github.com/dedis/paper_17_dfinity/pedersen/vss"
 	"gopkg.in/dedis/crypto.v0/abstract"
@@ -13,24 +14,18 @@ import (
 
 // DistKeyShare holds the share of a distributed key for a participant.
 type DistKeyShare struct {
-	// Coefficients of the public polynomial holding the public key
-	Commits []abstract.Point
+	// public polynomial holding the public key and aggregated commitments
+	Poly *share.PubPoly
 	// Share of the distributed secret
 	Share *share.PriShare
-}
-
-// Public returns the public key associated with the distributed private key.
-func (d *DistKeyShare) Public() abstract.Point {
-	return d.Commits[0]
 }
 
 func (d *DistKeyShare) PriShare() *share.PriShare {
 	return d.Share
 }
 
-// Commitments
-func (d *DistKeyShare) Commitments() []abstract.Point {
-	return d.Commits
+func (d *DistKeyShare) Polynomial() *share.PubPoly {
+	return d.Poly
 }
 
 // Deal holds the Deal for one participant as well as the index of the issuing
@@ -168,7 +163,7 @@ func (d *DistKeyGenerator) ProcessDeal(dd *Deal) (*Response, error) {
 	}
 
 	if _, ok := d.verifiers[dd.Index]; ok {
-		return nil, errors.New("dkg: already received dist deal from same index")
+		return nil, fmt.Errorf("dkg: already received dist deal from same index %d", dd.Index)
 	}
 
 	// verifier receiving the dealer's deal
@@ -313,10 +308,13 @@ func (d *DistKeyGenerator) DistKeyShare() (*DistKeyShare, error) {
 	if err != nil {
 		return nil, err
 	}
-	_, commits := pub.Info()
+
+	if !pub.Check(&share.PriShare{I: int(d.index), V: sh}) {
+		panic("aie")
+	}
 
 	return &DistKeyShare{
-		Commits: commits,
+		Poly: pub,
 		Share: &share.PriShare{
 			I: int(d.index),
 			V: sh,

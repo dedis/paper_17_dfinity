@@ -7,15 +7,15 @@ import (
 	"io"
 	"reflect"
 
-	"github.com/dedis/kyber/abstract"
 	"github.com/dfinity/go-dfinity-crypto/bls"
+	"gopkg.in/dedis/crypto.v0/abstract"
 
-	"github.com/dedis/kyber/cipher/sha3"
+	"gopkg.in/dedis/crypto.v0/cipher/sha3"
 )
 
 // Group interface extension to create pairing-capable points.
 type PairingGroup interface {
-	abstract.Group // Standard Group operations
+	abstract.Suite // Standard Group operations
 
 	PointGT() PointGT // Create new pairing-capable Point
 }
@@ -187,7 +187,7 @@ func (c *common) New(t reflect.Type) interface{} {
 }
 
 func (c *common) NewKey(r cipher.Stream) abstract.Scalar {
-	return NewScalar()
+	return NewScalar().Pick(r)
 }
 
 func curveName(curve int) string {

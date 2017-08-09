@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/dedis/kyber/test"
+	"gopkg.in/dedis/crypto.v0/test"
 
 	"github.com/stretchr/testify/require"
 )
@@ -66,7 +66,7 @@ func TestG2(t *testing.T) {
 func TestP0(t *testing.T) {
 	var p0 = NewPairingFp254BNb()
 	test.TestGroup(p0.G1())
-	//test.GroupTest(p0.G2())
+	//test.TestGroup(p0.G2())
 	//test.GroupTest(p0.GT())
 }
 

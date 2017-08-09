@@ -4,8 +4,8 @@ import (
 	"crypto/cipher"
 	"errors"
 
-	"github.com/dedis/kyber/abstract"
 	"github.com/dedis/paper_17_dfinity/pbc"
+	"gopkg.in/dedis/crypto.v0/abstract"
 )
 
 type PairingSuite interface {

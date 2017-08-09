@@ -4,16 +4,17 @@ import (
 	"crypto/rand"
 	"testing"
 
+	"github.com/dedis/paper_17_dfinity/pbc"
 	"github.com/dedis/paper_17_dfinity/pedersen/vss"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/dedis/crypto.v0/abstract"
-	"gopkg.in/dedis/crypto.v0/ed25519"
 	"gopkg.in/dedis/crypto.v0/random"
 	"gopkg.in/dedis/crypto.v0/share"
 )
 
-var suite = ed25519.NewAES128SHA256Ed25519(false)
+var pairing = pbc.NewPairingFp254BNb()
+var suite = pairing.G2()
 
 var nbParticipants = 7
 
@@ -518,7 +519,8 @@ func TestDistKeyShare(t *testing.T) {
 	assert.Nil(t, err)
 
 	commitSecret := suite.Point().Mul(nil, secret)
-	assert.Equal(t, dkss[0].Public().String(), commitSecret.String())
+	public := dkss[0].Polynomial().Commit()
+	assert.Equal(t, public.String(), commitSecret.String())
 }
 
 func dkgGen() []*DistKeyGenerator {
@@ -544,15 +546,7 @@ func randomBytes(n int) []byte {
 	return buff
 }
 func checkDks(dks1, dks2 *DistKeyShare) bool {
-	if len(dks1.Commits) != len(dks2.Commits) {
-		return false
-	}
-	for i, p := range dks1.Commits {
-		if !p.Equal(dks2.Commits[i]) {
-			return false
-		}
-	}
-	return true
+	return dks1.Polynomial().Equal(dks2.Polynomial())
 }
 
 func fullExchange(t *testing.T) {
@@ -572,9 +566,9 @@ func fullExchange(t *testing.T) {
 	}
 	// 2. Broadcast responses
 	for _, resp := range resps {
-		for _, dkg := range dkgs {
+		for i, dkg := range dkgs {
 			// ignore all messages from ourself
-			if resp.Response.Index == dkg.index {
+			if resp.Response.Index == uint32(i) {
 				continue
 			}
 			j, err := dkg.ProcessResponse(resp)

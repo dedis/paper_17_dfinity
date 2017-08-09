@@ -5,12 +5,12 @@ import (
 	"io"
 	"runtime"
 
-	"github.com/dedis/kyber/abstract"
-	"github.com/dedis/kyber/random"
+	"gopkg.in/dedis/crypto.v0/abstract"
+	"gopkg.in/dedis/crypto.v0/random"
 
 	"github.com/dfinity/go-dfinity-crypto/bls"
 
-	"github.com/dedis/kyber/group"
+	"gopkg.in/dedis/crypto.v0/group"
 )
 
 type scalar struct {
