@@ -1,0 +1,9 @@
+Simulation = "PedersenDKG"
+Servers = 1
+Hosts = 4
+Bf = 2
+Rounds = 10
+PBCurve = "fp254nb"
+
+Threshold
+3

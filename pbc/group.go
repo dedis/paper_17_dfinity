@@ -6,6 +6,7 @@ import (
 	"hash"
 	"io"
 	"reflect"
+	"strings"
 
 	"github.com/dfinity/go-dfinity-crypto/bls"
 	"gopkg.in/dedis/crypto.v0/abstract"
@@ -198,6 +199,19 @@ func curveName(curve int) string {
 		return "Fp382_1"
 	case CurveFp382_2:
 		return "Fp382_2"
+	default:
+		panic("pairing curve unknown")
+	}
+}
+
+func Curve(name string) int {
+	switch strings.ToLower(name) {
+	case "fp254nb":
+		return CurveFp254BNb
+	case "fp382_1":
+		return CurveFp382_1
+	case "fp382_2":
+		return CurveFp382_2
 	default:
 		panic("pairing curve unknown")
 	}
