@@ -32,22 +32,16 @@ func TestPointMarshalling(t *testing.T) {
 	decoded, err := hex.DecodeString(buff)
 	require.Nil(t, err)
 
-	go TryDecode(decoded)
-	go TryDecode(decoded)
-	go TryDecode(decoded)
-	go TryDecode(decoded)
-	go TryDecode(decoded)
-	go TryDecode(decoded)
-	go TryDecode(decoded)
-	go TryDecode(decoded)
+	go TryDecode(t, decoded)
+	TryDecode(t, decoded)
 }
 
-func TryDecode(decoded []byte) {
+func TryDecode(t *testing.T, decoded []byte) {
 	for i := 0; i < 10; i++ {
 		p := pbc.NewPairingFp254BNb()
 		g2 := p.G2()
 		point := g2.Point()
-		point.UnmarshalBinary(decoded)
+		require.Nil(t, point.UnmarshalBinary(decoded))
 		point.MarshalBinary()
 	}
 
