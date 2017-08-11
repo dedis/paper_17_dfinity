@@ -1,4 +1,4 @@
-package dkg
+package protocol
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 	"gopkg.in/dedis/onet.v1/network"
 )
 
-const ServiceName = "DkgService"
+const ServiceName = "PBCService"
 
 func init() {
 	onet.RegisterNewService(ServiceName, NewService)

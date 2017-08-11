@@ -1,4 +1,4 @@
-package dkg
+package protocol
 
 import (
 	"sync"
@@ -39,14 +39,14 @@ func TestDkgProtocol(test *testing.T) {
 		hosts, _, tree := local.GenBigTree(nbrHosts, nbrHosts, nbrHosts, true)
 		for _, host := range hosts {
 			// registration of the custom factory
-			host.ProtocolRegister(ProtoName, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
+			host.ProtocolRegister(DKGProtoName, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 				return NewProtocol(n, t, cb)
 			})
 
 		}
 
 		// Start the protocol
-		p, err := local.CreateProtocol(ProtoName, tree)
+		p, err := local.CreateProtocol(DKGProtoName, tree)
 		if err != nil {
 			test.Fatal("Couldn't create new node:", err)
 		}

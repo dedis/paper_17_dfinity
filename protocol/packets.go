@@ -1,4 +1,4 @@
-package dkg
+package protocol
 
 import (
 	"errors"
@@ -119,7 +119,7 @@ func (p *DKGProxy) PacketType() network.MessageTypeID {
 }
 
 func (p *DKGProxy) Name() string {
-	return ProtoName
+	return DKGProtoName
 }
 
 func unwrap(p *pbc.Pairing, msg interface{}) (interface{}, error) {

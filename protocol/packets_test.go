@@ -1,4 +1,4 @@
-package dkg
+package protocol
 
 import (
 	"encoding/hex"

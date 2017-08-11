@@ -1,4 +1,4 @@
-package dkg
+package protocol
 
 import (
 	"github.com/BurntSushi/toml"

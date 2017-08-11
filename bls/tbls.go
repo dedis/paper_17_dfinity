@@ -52,6 +52,9 @@ func AggregateSignatures(s PairingSuite, public *share.PubPoly, msg []byte, sigs
 			continue
 		}
 		pubShares = append(pubShares, &share.PubShare{V: sig.Sig, I: sig.Index})
+		if len(pubShares) >= t {
+			break
+		}
 	}
 
 	if len(pubShares) < t {

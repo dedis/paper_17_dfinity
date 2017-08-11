@@ -1,4 +1,4 @@
-package dkg
+package protocol
 
 import (
 	"sync"
@@ -11,7 +11,7 @@ import (
 	"gopkg.in/dedis/onet.v1/network"
 )
 
-const ProtoName = "DKG"
+const DKGProtoName = "DKG"
 
 func init() {
 	network.RegisterMessage(dkg.Deal{})
