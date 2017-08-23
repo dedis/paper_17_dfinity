@@ -7,6 +7,7 @@ import (
 	"io"
 	"reflect"
 	"strings"
+	"sync"
 
 	"github.com/dfinity/go-dfinity-crypto/bls"
 	"gopkg.in/dedis/crypto.v0/abstract"
@@ -66,6 +67,8 @@ type Pairing struct {
 	gt    gtgroup
 }
 
+var l sync.Mutex
+
 // NewPairing returns a new initialized curve.
 // XXX It is currently UNDEFINED to declare multiple pairing since the C lib uses a global
 // variable underneath.
@@ -74,7 +77,10 @@ func NewPairing(curve int) *Pairing {
 	if !ok {
 		panic("pairing: unsupported curve")
 	}
+	l.Lock()
+	defer l.Unlock()
 	bls.Init(curve)
+
 	p := &Pairing{curve: curve}
 	p.g1.curve = curve
 	p.g2.curve = curve

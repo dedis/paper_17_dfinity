@@ -2,7 +2,6 @@ package protocol
 
 import (
 	"errors"
-	"fmt"
 	"reflect"
 
 	"github.com/dedis/paper_17_dfinity/pbc"
@@ -143,7 +142,6 @@ func decode(buff []byte, packet interface{}, suite abstract.Suite) error {
 	var sc abstract.Scalar
 	cons[reflect.TypeOf(&pt).Elem()] = func() interface{} { return suite.Point() }
 	cons[reflect.TypeOf(&sc).Elem()] = func() interface{} { return suite.Scalar() }
-	fmt.Println(cons)
 	return protobuf.DecodeWithConstructors(buff, packet, cons)
 
 }

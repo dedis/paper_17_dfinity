@@ -1,6 +1,8 @@
 package protocol
 
 import (
+	"fmt"
+
 	"github.com/dedis/paper_17_dfinity/bls"
 	"github.com/dedis/paper_17_dfinity/pbc"
 	"github.com/dedis/paper_17_dfinity/pedersen/dkg"
@@ -46,6 +48,7 @@ func NewTBLSProtocol(tni *onet.TreeNodeInstance, p *pbc.Pairing, dks *dkg.DistKe
 		p:                p,
 		dks:              dks,
 	}
+	fmt.Println("TBLS->dks: ", dks)
 	t.RegisterHandlers(t.OnRequest, t.OnSignature)
 	return t, nil
 }

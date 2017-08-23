@@ -49,7 +49,7 @@ func (s *Simulation) Run(c *onet.SimulationConfig) error {
 	n := len(c.Roster.List)
 	roster := make([]abstract.Point, n)
 	privates := make([]abstract.Scalar, n)
-	pairing := s.Pairing()
+	//pairing := s.Pairing()
 	suite := pairing.G2()
 
 	for i := 0; i < n; i++ {

@@ -190,6 +190,9 @@ func (p *pointG2) MarshalTo(w io.Writer) (int, error) {
 }
 
 func (p *pointG2) UnmarshalBinary(buff []byte) error {
+	if buff == nil || len(buff) == 0 {
+		panic("aie aie aie")
+	}
 	return p.g.Deserialize(buff)
 }
 

@@ -48,7 +48,9 @@ func (s *Service) NewProtocol(*onet.TreeNodeInstance, *onet.GenericConfig) (onet
 // roster is the list of public keys
 // private sis the list of private keys
 func (s *Service) BroadcastPBCContext(r *onet.Roster, curve int, Roster []abstract.Point, privates []abstract.Scalar) {
-	s.pairing = pbc.NewPairing(curve)
+	// XXX constant pairing
+	//s.pairing = pbc.NewPairing(curve)
+	s.pairing = pairing
 	own := s.c.ServerIdentity()
 	for i, si := range r.List {
 		c := &PBCContext{
@@ -86,7 +88,9 @@ func (s *Service) Process(p *network.Envelope) {
 	switch inner := p.Msg.(type) {
 	case *PBCRaw:
 		msg := inner
-		s.pairing = pbc.NewPairing(msg.Curve)
+		// XXX constant pairing
+		//s.pairing = pbc.NewPairing(msg.Curve)
+		s.pairing = pairing
 		g2 := s.pairing.G2()
 		if err := decode(msg.Context, s.Context, g2); err != nil {
 			panic(err)

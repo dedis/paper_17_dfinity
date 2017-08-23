@@ -1,11 +1,12 @@
 package protocol
 
 import (
+	"fmt"
+	"math/rand"
 	"testing"
 	"time"
 
 	"github.com/dedis/paper_17_dfinity/bls"
-	"github.com/dedis/paper_17_dfinity/pbc"
 	"github.com/dedis/paper_17_dfinity/pedersen/dkg"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/dedis/onet.v1"
@@ -14,7 +15,7 @@ import (
 )
 
 func TestTBLS(test *testing.T) {
-	pairing := pbc.NewPairingFp382_2()
+	//	pairing := pbc.NewPairingFp382_2()
 	network.Suite = pairing.G2()
 	//network.Suite = edwards.NewAES128SHA256Ed25519(false)
 	//network.Suite = nist.NewAES128SHA256P256()
@@ -54,8 +55,15 @@ func TestTBLS(test *testing.T) {
 			if len(dkss) == nbrHosts {
 				break
 			}
+			require.NotNil(test, d.Share)
 		}
 
+		fmt.Println("Dist Key Shares DONE ")
+		for i := range rand.Perm(len(dkss)) {
+			require.NotNil(test, dkss[i], "dks index %d nil", i)
+		}
+
+		network.Suite = pairing.G1()
 		for i, host := range hosts[1:] {
 			host.ProtocolRegister(TBLSProtoName, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 				return NewTBLSProtocol(n, pairing, dkss[i])

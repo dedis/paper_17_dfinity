@@ -1,6 +1,8 @@
 package protocol
 
 import (
+	"fmt"
+	"strings"
 	"sync"
 
 	"github.com/dedis/onet/log"
@@ -21,11 +23,12 @@ func init() {
 
 type DkgProto struct {
 	*onet.TreeNodeInstance
-	dkg       *dkg.DistKeyGenerator
-	dks       *dkg.DistKeyShare
-	dkgDoneCb func(*dkg.DistKeyShare)
-	list      []*onet.TreeNode // to avoid recomputing it
-	sentDeal  bool
+	dkg           *dkg.DistKeyGenerator
+	dks           *dkg.DistKeyShare
+	dkgDoneCb     func(*dkg.DistKeyShare)
+	list          []*onet.TreeNode         // to avoid recomputing it
+	tempResponses map[uint32]*dkg.Response // responses received without any deal first
+	sentDeal      bool
 	sync.Mutex
 	done bool
 }
@@ -55,16 +58,17 @@ func NewProtocol(node *onet.TreeNodeInstance, t int, cb func(*dkg.DistKeyShare))
 	for i, e := range list {
 		participants[i] = e.ServerIdentity.Public
 	}
-	dkg, err := dkg.NewDistKeyGenerator(node.Suite(), node.Private(), participants, random.Stream, t)
+	dkgen, err := dkg.NewDistKeyGenerator(node.Suite(), node.Private(), participants, random.Stream, t)
 	if err != nil {
 		return nil, err
 	}
 
 	dp := &DkgProto{
 		TreeNodeInstance: node,
-		dkg:              dkg,
+		dkg:              dkgen,
 		dkgDoneCb:        cb,
 		list:             list,
+		tempResponses:    make(map[uint32]*dkg.Response),
 	}
 
 	err = dp.RegisterHandlers(dp.OnDeal, dp.OnResponse, dp.OnJustification)
@@ -72,6 +76,9 @@ func NewProtocol(node *onet.TreeNodeInstance, t int, cb func(*dkg.DistKeyShare))
 }
 
 func (d *DkgProto) Start() error {
+	d.Lock()
+	defer d.Unlock()
+	d.sentDeal = true
 	return d.sendDeals()
 }
 
@@ -85,10 +92,21 @@ func (d *DkgProto) OnDeal(dm DealMsg) error {
 		}
 	}
 	resp, err := d.dkg.ProcessDeal(&dm.Deal)
+
 	if err != nil {
 		return err
 	}
-	return d.Broadcast(resp)
+
+	if err := d.Broadcast(resp); err != nil {
+		return err
+	}
+
+	if r, ok := d.tempResponses[dm.Deal.Index]; ok {
+		d.Unlock()
+		d.OnResponse(ResponseMsg{TreeNode: nil, Response: *r})
+		d.Lock()
+	}
+	return nil
 }
 
 func (d *DkgProto) OnResponse(rm ResponseMsg) error {
@@ -97,6 +115,12 @@ func (d *DkgProto) OnResponse(rm ResponseMsg) error {
 	defer d.Unlock()
 	j, err := d.dkg.ProcessResponse(&rm.Response)
 	if err != nil {
+		if strings.Contains(err.Error(), "corresponding deal") {
+			// no deal received for it yet, save it for later
+			d.tempResponses[rm.Response.Index] = &rm.Response
+			return nil
+		}
+		fmt.Println("no deal received but response for ", rm.TreeNode.RosterIndex)
 		return err
 	}
 
