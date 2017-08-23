@@ -28,6 +28,8 @@ func init() {
 		sec, pub := genPair()
 		partPubs[i] = pub
 		partSec[i] = sec
+		//generated := suite.Point().Mul(nil, partSec[i])
+		//fmt.Printf("Key[%d] priv: %s, pub %s , generated %s\n", i, sec.String(), pub.String(), generated.String())
 	}
 	dkgs = dkgGen()
 }
