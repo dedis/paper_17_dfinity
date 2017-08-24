@@ -56,7 +56,7 @@ func TestDkgProtocol(test *testing.T) {
 			host.ProtocolRegister(DKGProtoName, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 				privates[n.Index()] = n.Private()
 				publics[n.Index()] = n.Public()
-				return NewProtocol(n, t, cb)
+				return NewDKGProtocol(n, t, cb)
 			})
 		}
 

@@ -54,7 +54,25 @@ func newProtoWrong(node *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 	panic("DkgProto should not be instantiated this way, but by a Service")
 }
 
-func NewProtocol(node *onet.TreeNodeInstance, t int, cb func(*dkg.DistKeyShare)) (*DkgProto, error) {
+func NewDKGProtocolFromService(node *onet.TreeNodeInstance, c *PBCContext, cb func(*dkg.DistKeyShare)) (*DkgProto, error) {
+	dkgen, err := dkg.NewDistKeyGenerator(pairing.G2(), c.Private, c.Roster, random.Stream, c.Threshold)
+	if err != nil {
+		return nil, err
+	}
+	dp := &DkgProto{
+		TreeNodeInstance: node,
+		index:            c.Index,
+		dkg:              dkgen,
+		dkgDoneCb:        cb,
+		list:             node.Tree().List(),
+		tempResponses:    make(map[uint32][]*dkg.Response),
+	}
+	err = dp.RegisterHandlers(dp.OnDeal, dp.OnResponse, dp.OnJustification)
+	return dp, err
+
+}
+
+func NewDKGProtocol(node *onet.TreeNodeInstance, t int, cb func(*dkg.DistKeyShare)) (*DkgProto, error) {
 	var participants = make([]abstract.Point, len(node.Roster().List))
 	list := node.Tree().List()
 	var index int = -1

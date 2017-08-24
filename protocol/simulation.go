@@ -5,7 +5,6 @@ import (
 	"github.com/dedis/onet/log"
 	"github.com/dedis/paper_17_dfinity/pbc"
 	"gopkg.in/dedis/crypto.v0/abstract"
-	"gopkg.in/dedis/crypto.v0/config"
 	"gopkg.in/dedis/onet.v1"
 )
 
@@ -47,20 +46,11 @@ func (s *Simulation) Pairing() *pbc.Pairing {
 
 func (s *Simulation) Run(c *onet.SimulationConfig) error {
 	n := len(c.Roster.List)
-	roster := make([]abstract.Point, n)
-	privates := make([]abstract.Scalar, n)
-	//pairing := s.Pairing()
-	suite := pairing.G2()
-
-	for i := 0; i < n; i++ {
-		kp := config.NewKeyPair(suite)
-		roster[i] = kp.Public
-		privates[i] = kp.Secret
-	}
-	s.PBCRoster = roster
-	s.PBCPrivate = privates
+	privs, pubs := GenerateBatchKeys(n)
+	s.PBCRoster = pubs
+	s.PBCPrivate = privs
 	log.Lvl1("DKG Simulation will dispatch private / public")
 	service := c.GetService(ServiceName).(*Service)
-	service.BroadcastPBCContext(c.Roster, pbc.Curve(s.PBCurve), roster, privates)
+	service.BroadcastPBCContext(c.Roster, pubs, privs)
 	return nil
 }

@@ -1,10 +1,12 @@
 package protocol
 
 import (
-	"fmt"
+	"errors"
+	"time"
 
 	"github.com/dedis/onet/log"
 	"github.com/dedis/paper_17_dfinity/pbc"
+	"github.com/dedis/paper_17_dfinity/pedersen/dkg"
 	"github.com/dedis/protobuf"
 	"gopkg.in/dedis/crypto.v0/abstract"
 	"gopkg.in/dedis/onet.v1"
@@ -18,12 +20,14 @@ func init() {
 }
 
 type Service struct {
-	c         *onet.Context
-	Context   *PBCContext
-	construct protobuf.Constructors
-	pairing   *pbc.Pairing
-	ackd      int
-	notify    chan bool
+	c          *onet.Context
+	Context    *PBCContext
+	construct  protobuf.Constructors
+	pairing    *pbc.Pairing
+	ackd       int
+	notify     chan bool
+	dks        *dkg.DistKeyShare // latest dkg share produced
+	onetRoster *onet.Roster      // classic roster to launch the DKG/TBLS protocol
 }
 
 func NewService(c *onet.Context) onet.Service {
@@ -31,14 +35,39 @@ func NewService(c *onet.Context) onet.Service {
 		c:         c,
 		construct: make(protobuf.Constructors),
 		notify:    make(chan bool),
+		Context:   new(PBCContext),
 	}
 	c.RegisterProcessor(s, pbcrawType)
 	c.RegisterProcessor(s, pbcAck)
 	return s
 }
 
-func (s *Service) NewProtocol(*onet.TreeNodeInstance, *onet.GenericConfig) (onet.ProtocolInstance, error) {
-	panic("not implemented")
+// RunDKG will launch the DKG protocol with the context & roster set up before with
+// BroadcastPBContext.
+func (s *Service) RunDKG() error {
+	n := len(s.onetRoster.List)
+	tree := s.onetRoster.GenerateNaryTreeWithRoot(n-1, s.c.ServerIdentity())
+	tni := s.c.NewTreeNodeInstance(tree, tree.Root, DKGProtoName)
+
+	done := make(chan *dkg.DistKeyShare)
+	callback := func(d *dkg.DistKeyShare) {
+		s.dkgDone(d)
+		done <- d
+	}
+
+	proto, err := NewDKGProtocolFromService(tni, s.Context, callback)
+	if err != nil {
+		return err
+	}
+	go proto.Start()
+
+	select {
+	case _ = <-done:
+		log.Lvl1("Root Service DKG DONE !")
+		return nil
+	case <-time.After(10 * time.Minute):
+		return errors.New("service root timeout on DKG")
+	}
 }
 
 // Broadcast each individual private / public keys and wait for everyone to
@@ -47,9 +76,10 @@ func (s *Service) NewProtocol(*onet.TreeNodeInstance, *onet.GenericConfig) (onet
 // curve is which curve of pbc are we using
 // roster is the list of public keys
 // private sis the list of private keys
-func (s *Service) BroadcastPBCContext(r *onet.Roster, curve int, Roster []abstract.Point, privates []abstract.Scalar) {
+func (s *Service) BroadcastPBCContext(r *onet.Roster, Roster []abstract.Point, privates []abstract.Scalar) {
 	// XXX constant pairing
 	//s.pairing = pbc.NewPairing(curve)
+	s.onetRoster = r
 	s.pairing = pairing
 	own := s.c.ServerIdentity()
 	for i, si := range r.List {
@@ -60,21 +90,21 @@ func (s *Service) BroadcastPBCContext(r *onet.Roster, curve int, Roster []abstra
 		}
 
 		if own.Equal(si) {
-			s.Context = c
+			s.setupContext(c)
 			continue
 		}
-		for i, r := range Roster {
-			fmt.Println(" Serializing Point ", i)
-			fmt.Println(r.String())
-			buff, _ := r.MarshalBinary()
-			fmt.Printf("%x\n", buff)
-		}
+		/*for i, r := range Roster {*/
+		//fmt.Println(" Serializing Point ", i)
+		//fmt.Println(r.String())
+		//buff, _ := r.MarshalBinary()
+		//fmt.Printf("%x\n", buff)
+		/*}*/
 		buff, err := protobuf.Encode(c)
 		if err != nil {
 			panic(err)
 		}
 		log.Lvl1("DKG Service sending to ", i, "/", len(r.List))
-		if err := s.c.SendRaw(si, &PBCRaw{Curve: curve, Context: buff}); err != nil {
+		if err := s.c.SendRaw(si, &PBCRaw{Context: buff}); err != nil {
 			log.Lvl1(err)
 			panic(err)
 		}
@@ -92,9 +122,11 @@ func (s *Service) Process(p *network.Envelope) {
 		//s.pairing = pbc.NewPairing(msg.Curve)
 		s.pairing = pairing
 		g2 := s.pairing.G2()
-		if err := decode(msg.Context, s.Context, g2); err != nil {
+		context := new(PBCContext)
+		if err := decode(msg.Context, context, g2); err != nil {
 			panic(err)
 		}
+		s.setupContext(context)
 		s.c.SendRaw(p.ServerIdentity, &PBCContextACK{s.Context.Index})
 	case *PBCContextACK:
 		s.ackd++
@@ -106,8 +138,20 @@ func (s *Service) Process(p *network.Envelope) {
 	}
 }
 
+func (s *Service) dkgDone(d *dkg.DistKeyShare) {
+	s.dks = d
+}
+
+func (s *Service) setupContext(c *PBCContext) {
+	s.Context = c
+	s.c.ProtocolRegister(DKGProtoName, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
+		return NewDKGProtocolFromService(n, s.Context, s.dkgDone)
+	})
+}
+
+func (s *Service) NewProtocol(*onet.TreeNodeInstance, *onet.GenericConfig) (onet.ProtocolInstance, error) {
+	panic("not implemented")
+}
 func (s *Service) ProcessClientRequest(handler string, msg []byte) (reply []byte, err onet.ClientError) {
 	panic("not implemented")
 }
-
-// message proxy part

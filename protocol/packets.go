@@ -2,10 +2,9 @@ package protocol
 
 import (
 	"errors"
-	"fmt"
 	"reflect"
 
-	"github.com/dedis/paper_17_dfinity/pbc"
+	"github.com/dedis/paper_17_dfinity/bls"
 	"github.com/dedis/paper_17_dfinity/pedersen/dkg"
 	"github.com/dedis/protobuf"
 	"gopkg.in/dedis/crypto.v0/abstract"
@@ -16,19 +15,27 @@ import (
 func init() {
 	pbcrawType = network.RegisterMessage(&PBCRaw{})
 	pbcAck = network.RegisterMessage(&PBCContextACK{})
-	pbcPacketType = network.RegisterMessage(&PBCProtocol{})
+	dkgPacketType = network.RegisterMessage(&DKGPacket{})
+	tblsPacketType = network.RegisterMessage(&TBLSPacket{})
+
+	onet.RegisterMessageProxy(func() onet.MessageProxy {
+		return new(DKGProxy)
+	})
+	onet.RegisterMessageProxy(func() onet.MessageProxy {
+		return new(TBLSProxy)
+	})
 }
 
 // packets related to the service setting up the right curve and constructor for
 // using pairing based crypto
 type PBCContext struct {
-	Index   int
-	Roster  []abstract.Point
-	Private abstract.Scalar
+	Index     int
+	Roster    []abstract.Point
+	Private   abstract.Scalar
+	Threshold int
 }
 
 type PBCRaw struct {
-	Curve   int
 	Context []byte
 }
 
@@ -39,14 +46,15 @@ type PBCContextACK struct {
 var pbcrawType network.MessageTypeID
 var pbcAck network.MessageTypeID
 
-// packets related to the message proxy so it can marshal and unmarshal with
-// pairing based crypto
 const (
-	TypeDKG int = iota
-	TypeTBLS
+	DKGDeal = iota
+	DKGResponse
+	DKGJust
 )
 
-type PBCProtocol struct {
+var dkgPacketType network.MessageTypeID
+
+type DKGPacket struct {
 	Type int
 
 	Buff []byte
@@ -54,88 +62,120 @@ type PBCProtocol struct {
 	Om *onet.OverlayMsg
 }
 
-var pbcPacketType network.MessageTypeID
-
-type DKGPacket struct {
-	Deal          *dkg.Deal
-	Response      *dkg.Response
-	Justification *dkg.Justification
-}
-
-type DKGProxy struct {
-	p *pbc.Pairing
-}
+type DKGProxy struct{}
 
 func (p *DKGProxy) Wrap(msg interface{}, info *onet.OverlayMsg) (interface{}, error) {
 	dkgPacket := &DKGPacket{}
-	switch inner := msg.(type) {
-	case *dkg.Deal:
-		dkgPacket.Deal = inner
-	case *dkg.Response:
-		dkgPacket.Response = inner
-	case *dkg.Justification:
-		dkgPacket.Justification = inner
-	default:
-		panic("not implementing anything else for the moment")
-	}
-
-	buff, err := protobuf.Encode(dkgPacket)
+	var err error
+	dkgPacket.Buff, err = protobuf.Encode(msg)
 	if err != nil {
 		return nil, err
 	}
-	fmt.Println("AAAAAAAAAAAA")
-	return &PBCProtocol{
-		Type: TypeDKG,
-		Buff: buff,
-		Om:   info,
-	}, nil
+
+	switch msg.(type) {
+	case *dkg.Deal:
+		dkgPacket.Type = DKGDeal
+	case *dkg.Response:
+		dkgPacket.Type = DKGResponse
+	case *dkg.Justification:
+		dkgPacket.Type = DKGJust
+	default:
+		panic("not implementing anything else for the moment")
+	}
+	return dkgPacket, nil
 }
 
 func (p *DKGProxy) Unwrap(msg interface{}) (interface{}, *onet.OverlayMsg, error) {
-	pbcPacket, ok := msg.(*PBCProtocol)
-	if !ok {
-		return nil, nil, errors.New("dkgproxy: received non pbcprotocol packet")
-	}
-	packet, err := unwrap(p.p, msg)
-	if err != nil {
-		return nil, nil, err
-	}
-	dkgPacket, ok := packet.(*DKGPacket)
+	dkgPacket, ok := msg.(*DKGPacket)
 	if !ok {
 		return nil, nil, errors.New("dkgproxy: received non dkg packet")
 	}
-	switch {
-	case dkgPacket.Deal != nil:
-		return dkgPacket.Deal, pbcPacket.Om, nil
-	case dkgPacket.Response != nil:
-		return dkgPacket.Response, pbcPacket.Om, nil
-	case dkgPacket.Justification != nil:
-		return dkgPacket.Justification, pbcPacket.Om, nil
+	var ret interface{}
+	switch dkgPacket.Type {
+	case DKGDeal:
+		ret = &dkg.Deal{}
+	case DKGResponse:
+		ret = &dkg.Response{}
+	case DKGJust:
+		ret = &dkg.Justification{}
+	default:
+		panic("wow wow i dont know that man")
 	}
-	return nil, nil, errors.New("dkgproxy: unknown error")
+	if err := decode(dkgPacket.Buff, ret, pairing.G2()); err != nil {
+		return nil, nil, err
+	}
+
+	return ret, dkgPacket.Om, nil
 }
 
 func (p *DKGProxy) PacketType() network.MessageTypeID {
-	return pbcPacketType
+	return dkgPacketType
 }
 
 func (p *DKGProxy) Name() string {
 	return DKGProtoName
 }
 
-func unwrap(p *pbc.Pairing, msg interface{}) (interface{}, error) {
-	pbc := msg.(*PBCProtocol)
-	var packet interface{}
-	var suite abstract.Suite
-	switch pbc.Type {
-	case TypeDKG:
-		packet = &DKGPacket{}
-		suite = p.G2()
-	case TypeTBLS:
-		//
-	}
+const (
+	TBLSRequestType = iota
+	TBLSSigType
+)
 
-	return packet, decode(pbc.Buff, packet, suite)
+var tblsPacketType network.MessageTypeID
+
+type TBLSPacket struct {
+	Type int
+	Buff []byte
+	Om   *onet.OverlayMsg
+}
+
+type TBLSProxy struct{}
+
+func (p *TBLSProxy) Wrap(msg interface{}, info *onet.OverlayMsg) (interface{}, error) {
+	bPacket := &TBLSPacket{Om: info}
+	var err error
+	bPacket.Buff, err = protobuf.Encode(msg)
+	if err != nil {
+		return nil, err
+	}
+	switch msg.(type) {
+	case *TBLSRequest:
+		bPacket.Type = TBLSRequestType
+	case *bls.ThresholdSig:
+		bPacket.Type = TBLSSigType
+	default:
+		panic("tbls proxy does not know what packet to wrap")
+	}
+	return bPacket, nil
+}
+
+func (p *TBLSProxy) Unwrap(msg interface{}) (interface{}, *onet.OverlayMsg, error) {
+	bPacket, ok := msg.(*TBLSPacket)
+	if !ok {
+		return nil, nil, errors.New("tbls proxy received non tbls packet")
+	}
+	var ret interface{}
+	switch msg.(type) {
+	case *TBLSRequest:
+		ret = &TBLSRequest{}
+	case *bls.ThresholdSig:
+		ret = &bls.ThresholdSig{}
+	default:
+		panic("not implementing any other packet, come on you know better ")
+	}
+	if err := decode(bPacket.Buff, ret, pairing.G1()); err != nil {
+		return nil, nil, err
+	}
+	return ret, bPacket.Om, nil
+
+}
+
+func (p *TBLSProxy) Name() string {
+	return TBLSProtoName
+}
+
+func (p *TBLSProxy) PacketType() network.MessageTypeID {
+	return tblsPacketType
 }
 
 func decode(buff []byte, packet interface{}, suite abstract.Suite) error {

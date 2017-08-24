@@ -41,7 +41,7 @@ func TestTBLS(test *testing.T) {
 		for _, host := range hosts {
 			// registration of the custom factory
 			host.ProtocolRegister(DKGProtoName, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
-				return NewProtocol(n, t, cb)
+				return NewDKGProtocol(n, t, cb)
 			})
 
 		}
