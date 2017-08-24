@@ -22,7 +22,7 @@ func TestTBLS(test *testing.T) {
 	//network.Suite = edwards.NewAES128SHA256Ed25519(false)
 	//network.Suite = nist.NewAES128SHA256P256()
 
-	for _, nbrHosts := range []int{10} {
+	for _, nbrHosts := range []int{3} {
 
 		log.Lvl2("Running dkg with", nbrHosts, "hosts")
 		t := nbrHosts/2 + 1
@@ -95,7 +95,7 @@ func TestTBLS(test *testing.T) {
 			dks := dkss[i+1]
 			host.ProtocolRegister(TBLSProtoName, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 				fmt.Printf("Protocol TBLS[%d] -> priv share %s\n", n.Index(), ToHex(dks.Share.V))
-				return NewTBLSProtocol(n, pairing, dks)
+				return NewTBLSProtocol(n, dks)
 			})
 		}
 

@@ -73,6 +73,39 @@ func (s *Service) RunDKG() error {
 	}
 }
 
+// RunTBLS runs the TBLS protocol with the latest DKG information given. It
+// returns the signature and an error if any.
+func (s *Service) RunTBLS(msg []byte) ([]byte, error) {
+	if s.dks == nil {
+		return nil, errors.New("NO DKG run before TBLS !!")
+	}
+	n := len(s.onetRoster.List)
+	tree := s.onetRoster.GenerateNaryTreeWithRoot(n-1, s.c.ServerIdentity())
+	tni := s.c.NewTreeNodeInstance(tree, tree.Root, DKGProtoName)
+
+	done := make(chan *dkg.DistKeyShare)
+	callback := func(d *dkg.DistKeyShare) {
+		done <- d
+	}
+
+	proto, err := NewDKGProtocolFromService(tni, s.Context, callback)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.c.RegisterProtocolInstance(proto); err != nil {
+		return nil, err
+	}
+	go proto.Start()
+
+	select {
+	case _ = <-done:
+		log.Lvl1("Root Service DKG DONE !")
+		return nil, nil
+	case <-time.After(10 * time.Minute):
+		return nil, errors.New("service root timeout on DKG")
+	}
+}
+
 // Broadcast each individual private / public keys and wait for everyone to
 // answer back
 // r is the list of usual server identities

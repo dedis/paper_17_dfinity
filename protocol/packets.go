@@ -124,6 +124,7 @@ func (p *DKGProxy) Name() string {
 const (
 	TBLSRequestType = iota
 	TBLSSigType
+	TBLSOm
 )
 
 var tblsPacketType network.MessageTypeID
@@ -138,10 +139,12 @@ type TBLSProxy struct{}
 
 func (p *TBLSProxy) Wrap(msg interface{}, info *onet.OverlayMsg) (interface{}, error) {
 	bPacket := &TBLSPacket{Om: info}
-	var err error
-	bPacket.Buff, err = protobuf.Encode(msg)
-	if err != nil {
-		return nil, err
+	if msg != nil {
+		var err error
+		bPacket.Buff, err = protobuf.Encode(msg)
+		if err != nil {
+			return nil, err
+		}
 	}
 	switch msg.(type) {
 	case *TBLSRequest:
@@ -149,7 +152,8 @@ func (p *TBLSProxy) Wrap(msg interface{}, info *onet.OverlayMsg) (interface{}, e
 	case *bls.ThresholdSig:
 		bPacket.Type = TBLSSigType
 	default:
-		panic("tbls proxy does not know what packet to wrap")
+		bPacket.Type = TBLSOm
+		bPacket.Buff = make([]byte, 0)
 	}
 	return bPacket, nil
 }
@@ -160,14 +164,15 @@ func (p *TBLSProxy) Unwrap(msg interface{}) (interface{}, *onet.OverlayMsg, erro
 		return nil, nil, errors.New("tbls proxy received non tbls packet")
 	}
 	var ret interface{}
-	switch msg.(type) {
-	case *TBLSRequest:
+	switch bPacket.Type {
+	case TBLSRequestType:
 		ret = &TBLSRequest{}
-	case *bls.ThresholdSig:
+	case TBLSSigType:
 		ret = &bls.ThresholdSig{}
-	default:
-		panic("not implementing any other packet, come on you know better ")
+	case TBLSOm:
+		return nil, bPacket.Om, nil
 	}
+
 	if err := decode(bPacket.Buff, ret, pairing.G1()); err != nil {
 		return nil, nil, err
 	}

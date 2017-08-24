@@ -34,7 +34,6 @@ type OnSignature struct {
 
 type TBLSProto struct {
 	*onet.TreeNodeInstance
-	p    *pbc.Pairing
 	dks  *dkg.DistKeyShare
 	sigs []*bls.ThresholdSig
 	cb   func(sig []byte)
@@ -43,10 +42,9 @@ type TBLSProto struct {
 	sync.Mutex
 }
 
-func NewTBLSProtocol(tni *onet.TreeNodeInstance, p *pbc.Pairing, dks *dkg.DistKeyShare) (onet.ProtocolInstance, error) {
+func NewTBLSProtocol(tni *onet.TreeNodeInstance, dks *dkg.DistKeyShare) (onet.ProtocolInstance, error) {
 	t := &TBLSProto{
 		TreeNodeInstance: tni,
-		p:                p,
 		dks:              dks,
 	}
 	t.RegisterHandlers(t.OnRequest, t.OnSignature)
@@ -54,7 +52,7 @@ func NewTBLSProtocol(tni *onet.TreeNodeInstance, p *pbc.Pairing, dks *dkg.DistKe
 }
 
 func NewTBLSRootProtocol(tni *onet.TreeNodeInstance, p *pbc.Pairing, dks *dkg.DistKeyShare, cb func(sig []byte), msg []byte) (onet.ProtocolInstance, error) {
-	pi, _ := NewTBLSProtocol(tni, p, dks)
+	pi, _ := NewTBLSProtocol(tni, dks)
 	proto := pi.(*TBLSProto)
 	proto.cb = cb
 	proto.msg = msg
@@ -62,8 +60,8 @@ func NewTBLSRootProtocol(tni *onet.TreeNodeInstance, p *pbc.Pairing, dks *dkg.Di
 }
 
 func (t *TBLSProto) Start() error {
-	ts := bls.ThresholdSign(t.p, t.dks, t.msg)
-	if !bls.ThresholdVerify(t.p, t.dks.Polynomial(), t.msg, ts) {
+	ts := bls.ThresholdSign(pairing, t.dks, t.msg)
+	if !bls.ThresholdVerify(pairing, t.dks.Polynomial(), t.msg, ts) {
 		panic("aaaa")
 	}
 
@@ -73,7 +71,7 @@ func (t *TBLSProto) Start() error {
 
 func (t *TBLSProto) OnRequest(or OnRequest) error {
 	msg := or.TBLSRequest.Message
-	ts := bls.ThresholdSign(t.p, t.dks, msg)
+	ts := bls.ThresholdSign(pairing, t.dks, msg)
 
 	return t.SendToParent(ts)
 }
@@ -85,14 +83,14 @@ func (t *TBLSProto) OnSignature(os OnSignature) error {
 		return nil
 	}
 	fmt.Println(t.Info(), "OnSignature")
-	if !bls.ThresholdVerify(t.p, t.dks.Polynomial(), t.msg, &os.ThresholdSig) {
+	if !bls.ThresholdVerify(pairing, t.dks.Polynomial(), t.msg, &os.ThresholdSig) {
 		panic(fmt.Errorf("%s: gave invalid signature", os.TreeNode.ServerIdentity.Address))
 	}
 	t.sigs = append(t.sigs, &os.ThresholdSig)
 	n := len(t.Roster().List)
 	threshold := t.dks.Polynomial().Threshold()
 	if len(t.sigs) > threshold {
-		sig, err := bls.AggregateSignatures(t.p, t.dks.Polynomial(), t.msg, t.sigs, n, threshold)
+		sig, err := bls.AggregateSignatures(pairing, t.dks.Polynomial(), t.msg, t.sigs, n, threshold)
 		if err != nil {
 			panic(err)
 		}
