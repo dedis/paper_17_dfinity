@@ -51,6 +51,6 @@ func (s *Simulation) Run(c *onet.SimulationConfig) error {
 	s.PBCPrivate = privs
 	log.Lvl1("DKG Simulation will dispatch private / public")
 	service := c.GetService(ServiceName).(*Service)
-	service.BroadcastPBCContext(c.Roster, pubs, privs)
+	service.BroadcastPBCContext(c.Roster, pubs, privs, s.Threshold)
 	return nil
 }

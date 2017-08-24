@@ -50,6 +50,7 @@ const (
 	DKGDeal = iota
 	DKGResponse
 	DKGJust
+	DKGOm
 )
 
 var dkgPacketType network.MessageTypeID
@@ -65,13 +66,15 @@ type DKGPacket struct {
 type DKGProxy struct{}
 
 func (p *DKGProxy) Wrap(msg interface{}, info *onet.OverlayMsg) (interface{}, error) {
-	dkgPacket := &DKGPacket{}
+	dkgPacket := &DKGPacket{Om: info}
 	var err error
-	dkgPacket.Buff, err = protobuf.Encode(msg)
-	if err != nil {
-		return nil, err
+	if msg != nil {
+		dkgPacket.Buff, err = protobuf.Encode(msg)
+		if err != nil {
+			return nil, err
+		}
 	}
-
+	//log.LLvl2("DKGProxy -> Wrap() ", msg)
 	switch msg.(type) {
 	case *dkg.Deal:
 		dkgPacket.Type = DKGDeal
@@ -80,7 +83,8 @@ func (p *DKGProxy) Wrap(msg interface{}, info *onet.OverlayMsg) (interface{}, er
 	case *dkg.Justification:
 		dkgPacket.Type = DKGJust
 	default:
-		panic("not implementing anything else for the moment")
+		dkgPacket.Type = DKGOm
+		dkgPacket.Buff = make([]byte, 0)
 	}
 	return dkgPacket, nil
 }
@@ -98,8 +102,9 @@ func (p *DKGProxy) Unwrap(msg interface{}) (interface{}, *onet.OverlayMsg, error
 		ret = &dkg.Response{}
 	case DKGJust:
 		ret = &dkg.Justification{}
-	default:
-		panic("wow wow i dont know that man")
+	case DKGOm:
+		//log.LLvl2("DKGProxy -> Unwrap() OverlayMessage")
+		return nil, dkgPacket.Om, nil
 	}
 	if err := decode(dkgPacket.Buff, ret, pairing.G2()); err != nil {
 		return nil, nil, err

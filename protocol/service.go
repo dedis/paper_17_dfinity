@@ -59,6 +59,9 @@ func (s *Service) RunDKG() error {
 	if err != nil {
 		return err
 	}
+	if err := s.c.RegisterProtocolInstance(proto); err != nil {
+		return err
+	}
 	go proto.Start()
 
 	select {
@@ -76,7 +79,7 @@ func (s *Service) RunDKG() error {
 // curve is which curve of pbc are we using
 // roster is the list of public keys
 // private sis the list of private keys
-func (s *Service) BroadcastPBCContext(r *onet.Roster, Roster []abstract.Point, privates []abstract.Scalar) {
+func (s *Service) BroadcastPBCContext(r *onet.Roster, Roster []abstract.Point, privates []abstract.Scalar, threshold int) {
 	// XXX constant pairing
 	//s.pairing = pbc.NewPairing(curve)
 	s.onetRoster = r
@@ -84,9 +87,10 @@ func (s *Service) BroadcastPBCContext(r *onet.Roster, Roster []abstract.Point, p
 	own := s.c.ServerIdentity()
 	for i, si := range r.List {
 		c := &PBCContext{
-			Index:   i,
-			Roster:  Roster,
-			Private: privates[i],
+			Index:     i,
+			Roster:    Roster,
+			Private:   privates[i],
+			Threshold: threshold,
 		}
 
 		if own.Equal(si) {
@@ -145,12 +149,14 @@ func (s *Service) dkgDone(d *dkg.DistKeyShare) {
 func (s *Service) setupContext(c *PBCContext) {
 	s.Context = c
 	s.c.ProtocolRegister(DKGProtoName, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
+		log.Fatal("ahahah")
 		return NewDKGProtocolFromService(n, s.Context, s.dkgDone)
 	})
 }
 
-func (s *Service) NewProtocol(*onet.TreeNodeInstance, *onet.GenericConfig) (onet.ProtocolInstance, error) {
-	panic("not implemented")
+func (s *Service) NewProtocol(node *onet.TreeNodeInstance, c *onet.GenericConfig) (onet.ProtocolInstance, error) {
+	log.LLvl2(s.c.String(), " -> NewProtocol DKG")
+	return NewDKGProtocolFromService(node, s.Context, s.dkgDone)
 }
 func (s *Service) ProcessClientRequest(handler string, msg []byte) (reply []byte, err onet.ClientError) {
 	panic("not implemented")
