@@ -111,7 +111,7 @@ func (d *DkgProto) Start() error {
 }
 
 func (d *DkgProto) OnDeal(dm DealMsg) error {
-	log.LLvl2(d.Name(), " received deal from ", dm.TreeNode.Name())
+	log.Lvl2(d.Name(), " received deal from ", dm.TreeNode.Name())
 	d.Lock()
 	if !d.sentDeal {
 		d.sentDeal = true
@@ -193,12 +193,12 @@ func (d *DkgProto) sendDeals() error {
 		if !ok {
 			continue
 		}
-		log.LLvl2(d.Name(), "sending deal (", i, ") to ", l.Name(), ":", deal)
+		log.Lvl2(d.Name(), "sending deal (", i, ") to ", l.Name(), ":", deal)
 		if err := d.SendTo(l, deal); err != nil {
 			log.Lvl3(d.Info(), err)
 		}
 	}
-	log.LLvl2(d.Name(), "finished sending deals")
+	log.Lvl2(d.Name(), "finished sending deals")
 	return nil
 }
 

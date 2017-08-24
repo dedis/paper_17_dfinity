@@ -135,6 +135,7 @@ func (s *Service) WaitDKGFinished() error {
 
 	select {
 	case <-done:
+		s.dkgWg = new(sync.WaitGroup)
 		return nil
 	case <-time.After(10 * time.Minute):
 		return errors.New("TIMEOUT on waiting ACK DKG")
@@ -207,6 +208,7 @@ func (s *Service) Process(p *network.Envelope) {
 		}
 	case *DKGConfirmation:
 		s.waitDKGConfirmation()
+		s.c.SendRaw(p.ServerIdentity, &DKGAck{})
 	case *DKGAck:
 		s.dkgWg.Done()
 	default:
