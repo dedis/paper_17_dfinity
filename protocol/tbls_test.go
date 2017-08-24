@@ -1,6 +1,8 @@
 package protocol
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"math/rand"
 	"testing"
@@ -29,6 +31,8 @@ func TestTBLS(test *testing.T) {
 		dkssCh := make(chan *dkg.DistKeyShare, 1)
 		dkss := make([]*dkg.DistKeyShare, nbrHosts)
 		cb := func(d *dkg.DistKeyShare) {
+			s := sha256.Sum256([]byte(d.Poly.Commit().String()))
+			fmt.Println("got dks index ", d.Share.I, " over ", nbrHosts, "hosts. public->", hex.EncodeToString(s[:]))
 			dkssCh <- d
 		}
 		local := onet.NewLocalTest()
@@ -48,11 +52,12 @@ func TestTBLS(test *testing.T) {
 		}
 
 		go p.Start()
-
+		receivedDKS := 0
 		for {
 			d := <-dkssCh
 			dkss[d.PriShare().I] = d
-			if len(dkss) == nbrHosts {
+			receivedDKS++
+			if receivedDKS == nbrHosts {
 				break
 			}
 			require.NotNil(test, d.Share)
@@ -66,7 +71,7 @@ func TestTBLS(test *testing.T) {
 		network.Suite = pairing.G1()
 		for i, host := range hosts[1:] {
 			host.ProtocolRegister(TBLSProtoName, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
-				return NewTBLSProtocol(n, pairing, dkss[i])
+				return NewTBLSProtocol(n, pairing, dkss[i+1])
 			})
 		}
 

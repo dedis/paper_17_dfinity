@@ -592,8 +592,13 @@ func (a *aggregator) DealCertified() bool {
 			comps++
 		}
 	}
+	// == a.verifiers if the deal is its own
+	// == a.verifiers - 1 if the deal if from another (a dealer won't send its
+	// own response of course)
+	enoughResponses := len(a.responses) >= len(a.verifiers)-1
 	tooMuchComplaints := comps >= a.t || a.badDealer
-	return a.EnoughApprovals() && !tooMuchComplaints
+	return a.EnoughApprovals() && !tooMuchComplaints && enoughResponses
+	//return a.EnoughApprovals() && !tooMuchComplaints
 }
 
 // MinimumT returns the minimum safe T that is proven to be secure with this

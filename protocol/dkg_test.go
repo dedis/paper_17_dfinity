@@ -1,6 +1,9 @@
 package protocol
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -22,16 +25,20 @@ func TestDkgProtocol(test *testing.T) {
 	//network.Suite = edwards.NewAES128SHA256Ed25519(false)
 	//network.Suite = nist.NewAES128SHA256P256()
 
-	for _, nbrHosts := range []int{5} {
-
+	for _, nbrHosts := range []int{10} {
 		log.Lvl2("Running dkg with", nbrHosts, "hosts")
 		t := nbrHosts/2 + 1
+		if t == nbrHosts {
+			panic("aie")
+		}
 
 		// function that will be called when protocol is finished by the root
 		done := make(chan bool)
 		var wg sync.WaitGroup
 		wg.Add(nbrHosts)
 		cb := func(d *dkg.DistKeyShare) {
+			s := sha256.Sum256([]byte(d.Poly.Commit().String()))
+			fmt.Println("got dks index ", d.Share.I, " over ", nbrHosts, "hosts. public->", hex.EncodeToString(s[:]))
 			wg.Done()
 		}
 		local := onet.NewLocalTest()
@@ -41,7 +48,6 @@ func TestDkgProtocol(test *testing.T) {
 			host.ProtocolRegister(DKGProtoName, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 				return NewProtocol(n, t, cb)
 			})
-
 		}
 
 		// Start the protocol

@@ -16,7 +16,7 @@ import (
 var pairing = pbc.NewPairingFp254BNb()
 var suite = pairing.G2()
 
-var nbParticipants = 7
+var nbParticipants = 4
 
 var partPubs []abstract.Point
 var partSec []abstract.Scalar
@@ -571,6 +571,7 @@ func fullExchange(t *testing.T) {
 			if resp.Response.Index == uint32(i) {
 				continue
 			}
+			//fmt.Printf("dkg[%d] process response for deal %d", i, resp.Index)
 			j, err := dkg.ProcessResponse(resp)
 			require.Nil(t, err)
 			require.Nil(t, j)

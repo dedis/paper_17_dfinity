@@ -139,6 +139,7 @@ func (d *DistKeyGenerator) Deals() (map[int]*Deal, error) {
 				// already processed our own deal
 				continue
 			}
+			// automatically process the deal and the corresponding response
 			if resp, err := d.ProcessDeal(distd); err != nil {
 				panic(err)
 			} else if resp.Response.Status != vss.StatusApproval {
@@ -190,11 +191,9 @@ func (d *DistKeyGenerator) ProcessResponse(resp *Response) (*Justification, erro
 	if !ok {
 		return nil, errors.New("dkg: response received but got no corresponding deal")
 	}
-
 	if err := v.ProcessResponse(resp.Response); err != nil {
 		return nil, err
 	}
-
 	if resp.Index != uint32(d.index) {
 		return nil, nil
 	}
@@ -230,8 +229,9 @@ func (d *DistKeyGenerator) ProcessJustification(j *Justification) error {
 // Certified returns true if at least t deals are certified (see
 // vss.Verifier.DealCertified()). If the distribution is certified, the protocol
 // can continue using d.SecretCommits().
+// XXX DKG requires all deals to be either acknowledged or refused
 func (d *DistKeyGenerator) Certified() bool {
-	return len(d.QUAL()) >= d.t
+	return len(d.QUAL()) >= len(d.participants)
 }
 
 // QUAL returns the index in the list of participants that forms the QUALIFIED

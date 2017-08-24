@@ -66,5 +66,8 @@ func AggregateSignatures(s PairingSuite, public *share.PubPoly, msg []byte, sigs
 		return nil, err
 	}
 	buff, _ := sig.MarshalBinary()
+	if err := Verify(s, public.Commit(), msg, buff); err != nil {
+		panic("math is wrong?")
+	}
 	return buff, nil
 }

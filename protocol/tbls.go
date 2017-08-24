@@ -7,7 +7,6 @@ import (
 	"github.com/dedis/paper_17_dfinity/pbc"
 	"github.com/dedis/paper_17_dfinity/pedersen/dkg"
 	"gopkg.in/dedis/onet.v1"
-	"gopkg.in/dedis/onet.v1/log"
 	"gopkg.in/dedis/onet.v1/network"
 )
 
@@ -48,7 +47,6 @@ func NewTBLSProtocol(tni *onet.TreeNodeInstance, p *pbc.Pairing, dks *dkg.DistKe
 		p:                p,
 		dks:              dks,
 	}
-	fmt.Println("TBLS->dks: ", dks)
 	t.RegisterHandlers(t.OnRequest, t.OnSignature)
 	return t, nil
 }
@@ -77,7 +75,7 @@ func (t *TBLSProto) OnSignature(os OnSignature) error {
 		return nil
 	}
 	if !bls.ThresholdVerify(t.p, t.dks.Polynomial(), t.msg, &os.ThresholdSig) {
-		log.Lvl2(os.TreeNode.ServerIdentity.Address, " gave invalid signature")
+		fmt.Println(os.TreeNode.ServerIdentity.Address, " gave invalid signature")
 	}
 	t.sigs = append(t.sigs, &os.ThresholdSig)
 	n := len(t.Roster().List)
