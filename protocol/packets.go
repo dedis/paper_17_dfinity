@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"errors"
+	"fmt"
 	"reflect"
 
 	"github.com/dedis/paper_17_dfinity/pbc"
@@ -82,6 +83,7 @@ func (p *DKGProxy) Wrap(msg interface{}, info *onet.OverlayMsg) (interface{}, er
 	if err != nil {
 		return nil, err
 	}
+	fmt.Println("AAAAAAAAAAAA")
 	return &PBCProtocol{
 		Type: TypeDKG,
 		Buff: buff,

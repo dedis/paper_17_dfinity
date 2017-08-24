@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/dedis/paper_17_dfinity/bls"
 	"github.com/dedis/paper_17_dfinity/pbc"
@@ -39,6 +40,7 @@ type TBLSProto struct {
 	cb   func(sig []byte)
 	msg  []byte
 	done bool
+	sync.Mutex
 }
 
 func NewTBLSProtocol(tni *onet.TreeNodeInstance, p *pbc.Pairing, dks *dkg.DistKeyShare) (onet.ProtocolInstance, error) {
@@ -60,6 +62,12 @@ func NewTBLSRootProtocol(tni *onet.TreeNodeInstance, p *pbc.Pairing, dks *dkg.Di
 }
 
 func (t *TBLSProto) Start() error {
+	ts := bls.ThresholdSign(t.p, t.dks, t.msg)
+	if !bls.ThresholdVerify(t.p, t.dks.Polynomial(), t.msg, ts) {
+		panic("aaaa")
+	}
+
+	t.sigs = append(t.sigs, ts)
 	return t.Broadcast(&TBLSRequest{t.msg})
 }
 
@@ -71,16 +79,19 @@ func (t *TBLSProto) OnRequest(or OnRequest) error {
 }
 
 func (t *TBLSProto) OnSignature(os OnSignature) error {
+	t.Lock()
+	defer t.Unlock()
 	if t.done {
 		return nil
 	}
+	fmt.Println(t.Info(), "OnSignature")
 	if !bls.ThresholdVerify(t.p, t.dks.Polynomial(), t.msg, &os.ThresholdSig) {
-		fmt.Println(os.TreeNode.ServerIdentity.Address, " gave invalid signature")
+		panic(fmt.Errorf("%s: gave invalid signature", os.TreeNode.ServerIdentity.Address))
 	}
 	t.sigs = append(t.sigs, &os.ThresholdSig)
 	n := len(t.Roster().List)
 	threshold := t.dks.Polynomial().Threshold()
-	if len(t.sigs) >= threshold {
+	if len(t.sigs) > threshold {
 		sig, err := bls.AggregateSignatures(t.p, t.dks.Polynomial(), t.msg, t.sigs, n, threshold)
 		if err != nil {
 			panic(err)

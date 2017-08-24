@@ -22,7 +22,7 @@ func TestTBLS(test *testing.T) {
 	//network.Suite = edwards.NewAES128SHA256Ed25519(false)
 	//network.Suite = nist.NewAES128SHA256P256()
 
-	for _, nbrHosts := range []int{5} {
+	for _, nbrHosts := range []int{10} {
 
 		log.Lvl2("Running dkg with", nbrHosts, "hosts")
 		t := nbrHosts/2 + 1
@@ -31,8 +31,9 @@ func TestTBLS(test *testing.T) {
 		dkssCh := make(chan *dkg.DistKeyShare, 1)
 		dkss := make([]*dkg.DistKeyShare, nbrHosts)
 		cb := func(d *dkg.DistKeyShare) {
-			s := sha256.Sum256([]byte(d.Poly.Commit().String()))
-			fmt.Println("got dks index ", d.Share.I, " over ", nbrHosts, "hosts. public->", hex.EncodeToString(s[:]))
+			s := ToHex(d.Poly.Commit())
+			priv := ToHex(d.PriShare().V)
+			fmt.Printf("dks[%d] / %d hosts: public -> %s, private -> %s\n", d.Share.I, nbrHosts, s, priv)
 			dkssCh <- d
 		}
 		local := onet.NewLocalTest()
@@ -65,17 +66,39 @@ func TestTBLS(test *testing.T) {
 
 		fmt.Println("Dist Key Shares DONE ")
 		for i := range rand.Perm(len(dkss)) {
+			fmt.Printf("#1 Check DKS[%d] -> %s\n", dkss[i].Share.I, ToHex(dkss[i].Share.V))
 			require.NotNil(test, dkss[i], "dks index %d nil", i)
 		}
 
+		fmt.Println(" --------- local test ---------- ")
+		// local test
+		msg := []byte("Hello World")
+		sigs := make([]*bls.ThresholdSig, nbrHosts)
+		for i, d := range dkss {
+			sigs[i] = bls.ThresholdSign(pairing, d, msg)
+			fmt.Printf("TBLS sig[%d] -> (%d) %s\n", i, sigs[i].Index, sigs[i].Sig.String())
+		}
+		poly := dkss[0].Polynomial()
+		sig, err := bls.AggregateSignatures(pairing, poly, msg, sigs, nbrHosts, t)
+		require.Nil(test, err)
+		require.Nil(test, bls.Verify(pairing, poly.Commit(), msg, sig))
+
+		fmt.Println(" ---------- network test -----------")
+		for i := range rand.Perm(len(dkss)) {
+			fmt.Printf("#1 Check DKS[%d] -> %s\n", dkss[i].Share.I, ToHex(dkss[i].Share.V))
+			require.NotNil(test, dkss[i], "dks index %d nil", i)
+		}
+
+		// network test
 		network.Suite = pairing.G1()
 		for i, host := range hosts[1:] {
+			dks := dkss[i+1]
 			host.ProtocolRegister(TBLSProtoName, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
-				return NewTBLSProtocol(n, pairing, dkss[i+1])
+				fmt.Printf("Protocol TBLS[%d] -> priv share %s\n", n.Index(), ToHex(dks.Share.V))
+				return NewTBLSProtocol(n, pairing, dks)
 			})
 		}
 
-		msg := []byte("Hello World")
 		sigDone := make(chan []byte)
 		sigCb := func(sig []byte) {
 			sigDone <- sig
@@ -101,4 +124,13 @@ func TestTBLS(test *testing.T) {
 
 		local.CloseAll()
 	}
+}
+
+type ToStr interface {
+	String() string
+}
+
+func ToHex(s ToStr) string {
+	b := sha256.Sum256([]byte(s.String()))
+	return hex.EncodeToString(b[:])
 }

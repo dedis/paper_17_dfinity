@@ -62,6 +62,9 @@ func NewProtocol(node *onet.TreeNodeInstance, t int, cb func(*dkg.DistKeyShare))
 		participants[i] = e.ServerIdentity.Public
 		if node.Public().Equal(participants[i]) {
 			index = i
+			if node.Index() != index {
+				panic("aie")
+			}
 		}
 	}
 	dkgen, err := dkg.NewDistKeyGenerator(node.Suite(), node.Private(), participants, random.Stream, t)
@@ -185,10 +188,10 @@ func (d *DkgProto) checkCertified() {
 		return
 	}
 	if !d.dkg.Certified() {
-		fmt.Printf("%d (#%d responses received). certified() ? --> NO\n", d.index, d.responsesReceived)
+		//fmt.Printf("%d (#%d responses received). certified() ? --> NO\n", d.index, d.responsesReceived)
 		return
 	}
-	fmt.Printf("%d (#%d responses received). certified() ? --> YES\n", d.index, d.responsesReceived)
+	//fmt.Printf("%d (#%d responses received). certified() ? --> YES\n", d.index, d.responsesReceived)
 	dks, err := d.dkg.DistKeyShare()
 	if err != nil {
 		log.Lvl2(d.ServerIdentity().String(), err)
