@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -12,6 +13,7 @@ import (
 func TestService(t *testing.T) {
 	n := 3
 	threshold := n/2 + 1
+	msg := []byte("crypto is good for your health")
 	local := onet.NewTCPTest()
 	// generate 5 hosts, they don't connect, they process messages, and they
 	// don't register the tree or entitylist
@@ -27,4 +29,7 @@ func TestService(t *testing.T) {
 	rootService.BroadcastPBCContext(roster, pubs, privs, threshold)
 
 	require.Nil(t, rootService.RunDKG())
+	time.Sleep(50 * time.Millisecond)
+	_, err := rootService.RunTBLS(msg)
+	require.Nil(t, err)
 }

@@ -104,7 +104,7 @@ func TestTBLS(test *testing.T) {
 			sigDone <- sig
 		}
 		hosts[0].ProtocolRegister(TBLSProtoName, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
-			return NewTBLSRootProtocol(n, pairing, dkss[0], sigCb, msg)
+			return NewTBLSRootProtocol(n, dkss[0], sigCb, msg)
 		})
 
 		// Start the protocol

@@ -17,7 +17,11 @@ func init() {
 	pbcAck = network.RegisterMessage(&PBCContextACK{})
 	dkgPacketType = network.RegisterMessage(&DKGPacket{})
 	tblsPacketType = network.RegisterMessage(&TBLSPacket{})
+	dkgConfirmationType = network.RegisterMessage(&DKGConfirmation{})
+	dkgAckType = network.RegisterMessage(&DKGAck{})
 
+	network.RegisterMessage(&DKGConfirmation{})
+	network.RegisterMessage(&DKGAck{})
 	onet.RegisterMessageProxy(func() onet.MessageProxy {
 		return new(DKGProxy)
 	})
@@ -105,6 +109,8 @@ func (p *DKGProxy) Unwrap(msg interface{}) (interface{}, *onet.OverlayMsg, error
 	case DKGOm:
 		//log.LLvl2("DKGProxy -> Unwrap() OverlayMessage")
 		return nil, dkgPacket.Om, nil
+	default:
+		panic("I'm freaking out DKG")
 	}
 	if err := decode(dkgPacket.Buff, ret, pairing.G2()); err != nil {
 		return nil, nil, err
@@ -171,13 +177,13 @@ func (p *TBLSProxy) Unwrap(msg interface{}) (interface{}, *onet.OverlayMsg, erro
 		ret = &bls.ThresholdSig{}
 	case TBLSOm:
 		return nil, bPacket.Om, nil
+	default:
+		panic("I'm freaking out")
 	}
-
 	if err := decode(bPacket.Buff, ret, pairing.G1()); err != nil {
 		return nil, nil, err
 	}
 	return ret, bPacket.Om, nil
-
 }
 
 func (p *TBLSProxy) Name() string {
@@ -187,6 +193,14 @@ func (p *TBLSProxy) Name() string {
 func (p *TBLSProxy) PacketType() network.MessageTypeID {
 	return tblsPacketType
 }
+
+type DKGConfirmation struct{}
+
+var dkgConfirmationType network.MessageTypeID
+
+type DKGAck struct{}
+
+var dkgAckType network.MessageTypeID
 
 func decode(buff []byte, packet interface{}, suite abstract.Suite) error {
 	cons := make(protobuf.Constructors)

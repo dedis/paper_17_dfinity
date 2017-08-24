@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/dedis/onet/log"
 	"github.com/dedis/paper_17_dfinity/bls"
-	"github.com/dedis/paper_17_dfinity/pbc"
 	"github.com/dedis/paper_17_dfinity/pedersen/dkg"
 	"gopkg.in/dedis/onet.v1"
 	"gopkg.in/dedis/onet.v1/network"
@@ -14,8 +14,8 @@ import (
 const TBLSProtoName = "TBLS"
 
 func init() {
-	network.RegisterMessage(bls.ThresholdSig{})
 	network.RegisterMessage(TBLSRequest{})
+	network.RegisterMessage(bls.ThresholdSig{})
 }
 
 type TBLSRequest struct {
@@ -51,7 +51,7 @@ func NewTBLSProtocol(tni *onet.TreeNodeInstance, dks *dkg.DistKeyShare) (onet.Pr
 	return t, nil
 }
 
-func NewTBLSRootProtocol(tni *onet.TreeNodeInstance, p *pbc.Pairing, dks *dkg.DistKeyShare, cb func(sig []byte), msg []byte) (onet.ProtocolInstance, error) {
+func NewTBLSRootProtocol(tni *onet.TreeNodeInstance, dks *dkg.DistKeyShare, cb func(sig []byte), msg []byte) (onet.ProtocolInstance, error) {
 	pi, _ := NewTBLSProtocol(tni, dks)
 	proto := pi.(*TBLSProto)
 	proto.cb = cb
@@ -66,7 +66,9 @@ func (t *TBLSProto) Start() error {
 	}
 
 	t.sigs = append(t.sigs, ts)
-	return t.Broadcast(&TBLSRequest{t.msg})
+	err := t.Broadcast(&TBLSRequest{t.msg})
+	log.LLvl2(t.Name(), " broadcasted TBLS request (err", err, ")")
+	return err
 }
 
 func (t *TBLSProto) OnRequest(or OnRequest) error {
@@ -82,7 +84,6 @@ func (t *TBLSProto) OnSignature(os OnSignature) error {
 	if t.done {
 		return nil
 	}
-	fmt.Println(t.Info(), "OnSignature")
 	if !bls.ThresholdVerify(pairing, t.dks.Polynomial(), t.msg, &os.ThresholdSig) {
 		panic(fmt.Errorf("%s: gave invalid signature", os.TreeNode.ServerIdentity.Address))
 	}

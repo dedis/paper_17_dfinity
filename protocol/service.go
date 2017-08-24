@@ -2,9 +2,11 @@ package protocol
 
 import (
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/dedis/onet/log"
+	"github.com/dedis/paper_17_dfinity/bls"
 	"github.com/dedis/paper_17_dfinity/pbc"
 	"github.com/dedis/paper_17_dfinity/pedersen/dkg"
 	"github.com/dedis/protobuf"
@@ -20,14 +22,17 @@ func init() {
 }
 
 type Service struct {
-	c          *onet.Context
-	Context    *PBCContext
-	construct  protobuf.Constructors
-	pairing    *pbc.Pairing
-	ackd       int
-	notify     chan bool
-	dks        *dkg.DistKeyShare // latest dkg share produced
-	onetRoster *onet.Roster      // classic roster to launch the DKG/TBLS protocol
+	c            *onet.Context
+	Context      *PBCContext
+	construct    protobuf.Constructors
+	pairing      *pbc.Pairing
+	ackd         int
+	notify       chan bool
+	dks          *dkg.DistKeyShare // latest dkg share produced
+	onetRoster   *onet.Roster      // classic roster to launch the DKG/TBLS protocol
+	dksCond      *sync.Cond
+	dkgConfirmed int
+	dkgWg        *sync.WaitGroup
 }
 
 func NewService(c *onet.Context) onet.Service {
@@ -36,9 +41,13 @@ func NewService(c *onet.Context) onet.Service {
 		construct: make(protobuf.Constructors),
 		notify:    make(chan bool),
 		Context:   new(PBCContext),
+		dksCond:   sync.NewCond(&sync.Mutex{}),
+		dkgWg:     new(sync.WaitGroup),
 	}
 	c.RegisterProcessor(s, pbcrawType)
 	c.RegisterProcessor(s, pbcAck)
+	c.RegisterProcessor(s, dkgConfirmationType)
+	c.RegisterProcessor(s, dkgAckType)
 	return s
 }
 
@@ -80,15 +89,16 @@ func (s *Service) RunTBLS(msg []byte) ([]byte, error) {
 		return nil, errors.New("NO DKG run before TBLS !!")
 	}
 	n := len(s.onetRoster.List)
+	// XXX optimize the tree as field
 	tree := s.onetRoster.GenerateNaryTreeWithRoot(n-1, s.c.ServerIdentity())
-	tni := s.c.NewTreeNodeInstance(tree, tree.Root, DKGProtoName)
+	tni := s.c.NewTreeNodeInstance(tree, tree.Root, TBLSProtoName)
 
-	done := make(chan *dkg.DistKeyShare)
-	callback := func(d *dkg.DistKeyShare) {
-		done <- d
+	done := make(chan []byte)
+	callback := func(sig []byte) {
+		done <- sig
 	}
 
-	proto, err := NewDKGProtocolFromService(tni, s.Context, callback)
+	proto, err := NewTBLSRootProtocol(tni, s.dks, callback, msg)
 	if err != nil {
 		return nil, err
 	}
@@ -98,11 +108,36 @@ func (s *Service) RunTBLS(msg []byte) ([]byte, error) {
 	go proto.Start()
 
 	select {
-	case _ = <-done:
-		log.Lvl1("Root Service DKG DONE !")
-		return nil, nil
+	case sig := <-done:
+		log.Lvl1("Root Service TBLS DONE !")
+		return sig, bls.Verify(pairing, s.dks.Polynomial().Commit(), msg, sig)
 	case <-time.After(10 * time.Minute):
 		return nil, errors.New("service root timeout on DKG")
+	}
+}
+
+// WaitDKGFinished asks all nodes if their DKG protocol has returned their DKS
+// MUST ONLY BE CALLED ONCE (because I'm lazy and sync.WaitGroup is super
+// useful)
+func (s *Service) WaitDKGFinished() error {
+	for _, si := range s.onetRoster.List {
+		s.dkgWg.Add(1)
+		if err := s.c.SendRaw(si, &DKGConfirmation{}); err != nil {
+			return err
+		}
+	}
+
+	done := make(chan bool)
+	go func() {
+		s.dkgWg.Wait()
+		done <- true
+	}()
+
+	select {
+	case <-done:
+		return nil
+	case <-time.After(10 * time.Minute):
+		return errors.New("TIMEOUT on waiting ACK DKG")
 	}
 }
 
@@ -170,26 +205,53 @@ func (s *Service) Process(p *network.Envelope) {
 		if s.ackd == len(s.Context.Roster)-1 {
 			s.notify <- true
 		}
+	case *DKGConfirmation:
+		s.waitDKGConfirmation()
+	case *DKGAck:
+		s.dkgWg.Done()
 	default:
 		panic("receiving unknown message")
 	}
 }
 
 func (s *Service) dkgDone(d *dkg.DistKeyShare) {
+	s.dksCond.L.Lock()
+	defer s.dksCond.L.Unlock()
 	s.dks = d
+	s.dksCond.Broadcast()
+}
+
+func (s *Service) waitDKGConfirmation() {
+	s.dksCond.L.Lock()
+	for s.dks == nil {
+		s.dksCond.Wait()
+	}
+	s.dksCond.L.Unlock()
 }
 
 func (s *Service) setupContext(c *PBCContext) {
 	s.Context = c
 	s.c.ProtocolRegister(DKGProtoName, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
 		log.Fatal("ahahah")
-		return NewDKGProtocolFromService(n, s.Context, s.dkgDone)
+		return nil, nil
+	})
+	s.c.ProtocolRegister(TBLSProtoName, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
+		log.Fatal("ahahah")
+		return nil, nil
 	})
 }
 
 func (s *Service) NewProtocol(node *onet.TreeNodeInstance, c *onet.GenericConfig) (onet.ProtocolInstance, error) {
-	log.LLvl2(s.c.String(), " -> NewProtocol DKG")
-	return NewDKGProtocolFromService(node, s.Context, s.dkgDone)
+	switch node.ProtocolName() {
+	case DKGProtoName:
+		log.LLvl2(s.c.String(), " -> NewProtocol DKG")
+		return NewDKGProtocolFromService(node, s.Context, s.dkgDone)
+	case TBLSProtoName:
+		log.LLvl2(s.c.String(), " -> NewProtocol TBLS")
+		return NewTBLSProtocol(node, s.dks)
+	default:
+		return nil, errors.New("UNDEFINED protocol")
+	}
 }
 func (s *Service) ProcessClientRequest(handler string, msg []byte) (reply []byte, err onet.ClientError) {
 	panic("not implemented")
