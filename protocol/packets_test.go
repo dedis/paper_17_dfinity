@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/dedis/paper_17_dfinity/pbc"
 	"github.com/dedis/protobuf"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/dedis/crypto.v0/abstract"
@@ -11,8 +12,8 @@ import (
 )
 
 func TestMarshalling(t *testing.T) {
-	//p := pbc.NewPairingFp382_2()
-	g2 := pairing.G2()
+	p := pbc.NewPairingFp382_2()
+	g2 := p.G2()
 	msg := &PBCContext{
 		Index:   0,
 		Private: g2.NewKey(random.Stream),
@@ -24,8 +25,8 @@ func TestMarshalling(t *testing.T) {
 	require.Nil(t, decode(buff, decoded, g2))
 	reflect.DeepEqual(decoded, msg)
 
-	//p = pbc.NewPairingFp254BNb()
-	g2 = pairing.G2()
+	p = pbc.NewPairingFp254BNb()
+	g2 = p.G2()
 	msg = &PBCContext{
 		Index:   0,
 		Private: g2.NewKey(random.Stream),
@@ -36,7 +37,6 @@ func TestMarshalling(t *testing.T) {
 	decoded = &PBCContext{}
 	require.Nil(t, decode(buff, decoded, g2))
 	reflect.DeepEqual(decoded, msg)
-
 }
 
 /*func TestMarshallingPoint(t *testing.T) {*/

@@ -3,12 +3,11 @@ package protocol
 import (
 	"github.com/BurntSushi/toml"
 	"github.com/dedis/onet/log"
-	"github.com/dedis/paper_17_dfinity/pbc"
 	"gopkg.in/dedis/crypto.v0/abstract"
 	"gopkg.in/dedis/onet.v1"
 )
 
-const SimulationName = "PedersenDKG"
+const SimulationName = "dfinity"
 
 func init() {
 	onet.SimulationRegister(SimulationName, NewSimulation)
@@ -16,17 +15,15 @@ func init() {
 
 type Simulation struct {
 	onet.SimulationBFTree
-	Threshold  int    // if 0, then threshold = n / 2 + 1
-	PBCurve    string // see pbc.Curve()
+	Threshold  int // if 0, then threshold = n / 2 + 1
 	PBCRoster  []abstract.Point
 	PBCPrivate []abstract.Scalar
 }
 
 func NewSimulation(config string) (onet.Simulation, error) {
-	s := &Simulation{PBCurve: "Fp254Nb"}
+	s := &Simulation{}
 	_, err := toml.Decode(config, s)
 	// panics if something's wrong
-	pbc.Curve(s.PBCurve)
 	return s, err
 }
 
@@ -39,11 +36,6 @@ func (s *Simulation) Setup(dir string, hosts []string) (*onet.SimulationConfig, 
 	return sim, nil
 }
 
-func (s *Simulation) Pairing() *pbc.Pairing {
-	curve := pbc.Curve(s.PBCurve)
-	return pbc.NewPairing(curve)
-}
-
 func (s *Simulation) Run(c *onet.SimulationConfig) error {
 	n := len(c.Roster.List)
 	privs, pubs := GenerateBatchKeys(n)
@@ -52,5 +44,17 @@ func (s *Simulation) Run(c *onet.SimulationConfig) error {
 	log.Lvl1("DKG Simulation will dispatch private / public")
 	service := c.GetService(ServiceName).(*Service)
 	service.BroadcastPBCContext(c.Roster, pubs, privs, s.Threshold)
+	if err := service.RunDKG(); err != nil {
+		log.Fatal(err)
+	}
+	if err := service.WaitDKGFinished(); err != nil {
+		log.Fatal(err)
+	}
+
+	msg := []byte("let's dfinityze the world")
+	_, err := service.RunTBLS(msg)
+	if err != nil {
+		log.Fatal(err)
+	}
 	return nil
 }
