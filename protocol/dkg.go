@@ -28,6 +28,8 @@ type DkgProto struct {
 	index             int
 	dkgDoneCb         func(*dkg.DistKeyShare)
 	list              []*onet.TreeNode // to avoid recomputing it
+	dealsReceived     map[uint32]bool
+	allResponses      map[pair]bool
 	responsesReceived int
 	tempResponses     map[uint32][]*dkg.Response // responses received without any deal first
 	sentDeal          bool
@@ -66,6 +68,8 @@ func NewDKGProtocolFromService(node *onet.TreeNodeInstance, c *PBCContext, cb fu
 		dkgDoneCb:        cb,
 		list:             node.Tree().List(),
 		tempResponses:    make(map[uint32][]*dkg.Response),
+		dealsReceived:    make(map[uint32]bool),
+		allResponses:     make(map[pair]bool),
 	}
 	err = dp.RegisterHandlers(dp.OnDeal, dp.OnResponse, dp.OnJustification)
 	return dp, err
@@ -97,6 +101,8 @@ func NewDKGProtocol(node *onet.TreeNodeInstance, t int, cb func(*dkg.DistKeyShar
 		dkgDoneCb:        cb,
 		list:             list,
 		tempResponses:    make(map[uint32][]*dkg.Response),
+		dealsReceived:    make(map[uint32]bool),
+		allResponses:     make(map[pair]bool),
 	}
 
 	err = dp.RegisterHandlers(dp.OnDeal, dp.OnResponse, dp.OnJustification)
@@ -120,8 +126,13 @@ func (d *DkgProto) OnDeal(dm DealMsg) error {
 			return err
 		}
 	}
-	resp, err := d.dkg.ProcessDeal(&dm.Deal)
 
+	if _, ok := d.dealsReceived[dm.Deal.Index]; ok {
+		log.Lvl2(d.Name(), "already received deal from same author -> skip")
+		return nil
+	}
+	resp, err := d.dkg.ProcessDeal(&dm.Deal)
+	d.dealsReceived[dm.Deal.Index] = true
 	if err != nil {
 		d.Unlock()
 		return err
@@ -156,6 +167,15 @@ func (d *DkgProto) OnResponse(rm ResponseMsg) error {
 	defer d.checkCertified()
 	defer d.Unlock()
 	d.responsesReceived++
+
+	p := pair{rm.Response.Index, rm.Response.Response.Index}
+	if _, ok := d.allResponses[p]; ok {
+		log.LLvl2(d.Name(), "already received response for this deal")
+		return nil
+	}
+
+	d.allResponses[p] = true
+
 	j, err := d.dkg.ProcessResponse(&rm.Response)
 	if err != nil {
 		if strings.Contains(err.Error(), "corresponding deal") {
@@ -208,6 +228,7 @@ func (d *DkgProto) checkCertified() {
 	if d.done {
 		return
 	}
+
 	if !d.dkg.Certified() {
 		//fmt.Printf("%d (#%d responses received). certified() ? --> NO\n", d.index, d.responsesReceived)
 		return
@@ -221,4 +242,9 @@ func (d *DkgProto) checkCertified() {
 	d.dks = dks
 	d.dkgDoneCb(dks)
 	d.done = true
+}
+
+type pair struct {
+	Dealer   uint32
+	Verifier uint32
 }

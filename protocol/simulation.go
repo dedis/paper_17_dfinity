@@ -1,6 +1,8 @@
 package protocol
 
 import (
+	"fmt"
+
 	"github.com/BurntSushi/toml"
 	"github.com/dedis/onet/log"
 	"gopkg.in/dedis/crypto.v0/abstract"
@@ -37,6 +39,7 @@ func (s *Simulation) Setup(dir string, hosts []string) (*onet.SimulationConfig, 
 }
 
 func (s *Simulation) Run(c *onet.SimulationConfig) error {
+	fmt.Println("SIMULATION: RUN()")
 	n := len(c.Roster.List)
 	privs, pubs := GenerateBatchKeys(n)
 	s.PBCRoster = pubs
@@ -44,17 +47,26 @@ func (s *Simulation) Run(c *onet.SimulationConfig) error {
 	log.Lvl1("DKG Simulation will dispatch private / public")
 	service := c.GetService(ServiceName).(*Service)
 	service.BroadcastPBCContext(c.Roster, pubs, privs, s.Threshold)
-	if err := service.RunDKG(); err != nil {
-		log.Fatal(err)
-	}
-	if err := service.WaitDKGFinished(); err != nil {
-		log.Fatal(err)
-	}
 
-	msg := []byte("let's dfinityze the world")
-	_, err := service.RunTBLS(msg)
-	if err != nil {
-		log.Fatal(err)
+	for i := 0; i < s.Rounds; i++ {
+
+		log.Lvl1("DKG(", i, ") Context broadcasted. Run protocol now...")
+		if err := service.RunDKG(); err != nil {
+			log.Fatal(err)
+		}
+		log.Lvl1("DKG(", i, ") Protocol DONE ! waiting all dkg done...")
+		if err := service.WaitDKGFinished(); err != nil {
+			log.Fatal(err)
+		}
+		log.Lvl1("DKG (", i, ") ALL DONE !")
+		log.Lvl1("Start TBLS (", i, ") !")
+
+		msg := []byte("let's dfinityze the world")
+		_, err := service.RunTBLS(msg)
+		if err != nil {
+			log.Fatal(err)
+		}
+		log.Lvl1("TBLS (", i, ") DONE")
 	}
 	return nil
 }
