@@ -1,0 +1,12 @@
+Simulation = "dfinity"
+Servers = 1
+Rounds = 2
+PreScript = "install_pbc_mininet.sh"
+Delay = 100
+
+Hosts,Bf, Threshold 
+5,4,3
+10,9,7
+15,14,10
+20,19,15
+30,29,25

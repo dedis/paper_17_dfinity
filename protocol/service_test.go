@@ -10,6 +10,7 @@ import (
 )
 
 func TestService(t *testing.T) {
+	log.TestOutput(true, 3)
 	n := 3
 	threshold := n/2 + 1
 	msg := []byte("crypto is good for your health")

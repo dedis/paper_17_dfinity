@@ -2,8 +2,6 @@ package protocol
 
 import (
 	"crypto/sha256"
-	"encoding/hex"
-	"fmt"
 	"sync"
 	"testing"
 	"time"
@@ -40,8 +38,8 @@ func TestDkgProtocol(test *testing.T) {
 		dkss := make([]*dkg.DistKeyShare, nbrHosts)
 		var dksLock sync.Mutex
 		cb := func(d *dkg.DistKeyShare) {
-			s := sha256.Sum256([]byte(d.Poly.Commit().String()))
-			fmt.Println("got dks index ", d.Share.I, " over ", nbrHosts, "hosts. public->", hex.EncodeToString(s[:]))
+			_ = sha256.Sum256([]byte(d.Poly.Commit().String()))
+			//fmt.Println("got dks index ", d.Share.I, " over ", nbrHosts, "hosts. public->", hex.EncodeToString(s[:]))
 			dksLock.Lock()
 			dkss[d.PriShare().I] = d
 			dksLock.Unlock()

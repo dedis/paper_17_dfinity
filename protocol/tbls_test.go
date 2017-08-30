@@ -3,7 +3,6 @@ package protocol
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"fmt"
 	"math/rand"
 	"testing"
 	"time"
@@ -31,9 +30,9 @@ func TestTBLS(test *testing.T) {
 		dkssCh := make(chan *dkg.DistKeyShare, 1)
 		dkss := make([]*dkg.DistKeyShare, nbrHosts)
 		cb := func(d *dkg.DistKeyShare) {
-			s := ToHex(d.Poly.Commit())
-			priv := ToHex(d.PriShare().V)
-			fmt.Printf("dks[%d] / %d hosts: public -> %s, private -> %s\n", d.Share.I, nbrHosts, s, priv)
+			_ = ToHex(d.Poly.Commit())
+			_ = ToHex(d.PriShare().V)
+			//fmt.Printf("dks[%d] / %d hosts: public -> %s, private -> %s\n", d.Share.I, nbrHosts, s, priv)
 			dkssCh <- d
 		}
 		local := onet.NewLocalTest()
@@ -64,28 +63,28 @@ func TestTBLS(test *testing.T) {
 			require.NotNil(test, d.Share)
 		}
 
-		fmt.Println("Dist Key Shares DONE ")
+		//fmt.Println("Dist Key Shares DONE ")
 		for i := range rand.Perm(len(dkss)) {
-			fmt.Printf("#1 Check DKS[%d] -> %s\n", dkss[i].Share.I, ToHex(dkss[i].Share.V))
+			//fmt.Printf("#1 Check DKS[%d] -> %s\n", dkss[i].Share.I, ToHex(dkss[i].Share.V))
 			require.NotNil(test, dkss[i], "dks index %d nil", i)
 		}
 
-		fmt.Println(" --------- local test ---------- ")
+		// fmt.Println(" --------- local test ---------- ")
 		// local test
 		msg := []byte("Hello World")
 		sigs := make([]*bls.ThresholdSig, nbrHosts)
 		for i, d := range dkss {
 			sigs[i] = bls.ThresholdSign(pairing, d, msg)
-			fmt.Printf("TBLS sig[%d] -> (%d) %s\n", i, sigs[i].Index, sigs[i].Sig.String())
+			//fmt.Printf("TBLS sig[%d] -> (%d) %s\n", i, sigs[i].Index, sigs[i].Sig.String())
 		}
 		poly := dkss[0].Polynomial()
 		sig, err := bls.AggregateSignatures(pairing, poly, msg, sigs, nbrHosts, t)
 		require.Nil(test, err)
 		require.Nil(test, bls.Verify(pairing, poly.Commit(), msg, sig))
 
-		fmt.Println(" ---------- network test -----------")
+		//fmt.Println(" ---------- network test -----------")
 		for i := range rand.Perm(len(dkss)) {
-			fmt.Printf("#1 Check DKS[%d] -> %s\n", dkss[i].Share.I, ToHex(dkss[i].Share.V))
+			//fmt.Printf("#1 Check DKS[%d] -> %s\n", dkss[i].Share.I, ToHex(dkss[i].Share.V))
 			require.NotNil(test, dkss[i], "dks index %d nil", i)
 		}
 
@@ -94,7 +93,7 @@ func TestTBLS(test *testing.T) {
 		for i, host := range hosts[1:] {
 			dks := dkss[i+1]
 			host.ProtocolRegister(TBLSProtoName, func(n *onet.TreeNodeInstance) (onet.ProtocolInstance, error) {
-				fmt.Printf("Protocol TBLS[%d] -> priv share %s\n", n.Index(), ToHex(dks.Share.V))
+				//fmt.Printf("Protocol TBLS[%d] -> priv share %s\n", n.Index(), ToHex(dks.Share.V))
 				return NewTBLSProtocol(n, dks)
 			})
 		}

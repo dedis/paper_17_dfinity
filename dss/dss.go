@@ -18,7 +18,6 @@ import (
 	"bytes"
 	"crypto/sha512"
 	"errors"
-	"fmt"
 
 	"gopkg.in/dedis/crypto.v0/abstract"
 
@@ -186,7 +185,6 @@ func (d *DSS) Signature() ([]byte, error) {
 	}
 	gamma, err := share.RecoverSecret(d.suite, d.partials, d.T, len(d.participants))
 	if err != nil {
-		fmt.Println("or here")
 		return nil, err
 	}
 	// RandomPublic || gamma

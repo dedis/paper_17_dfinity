@@ -7,6 +7,7 @@ import (
 	"github.com/dedis/onet/log"
 	"gopkg.in/dedis/crypto.v0/abstract"
 	"gopkg.in/dedis/onet.v1"
+	"gopkg.in/dedis/onet.v1/simul/monitor"
 )
 
 const SimulationName = "dfinity"
@@ -49,20 +50,25 @@ func (s *Simulation) Run(c *onet.SimulationConfig) error {
 	service.BroadcastPBCContext(c.Roster, pubs, privs, s.Threshold)
 
 	for i := 0; i < s.Rounds; i++ {
-
 		log.Lvl1("DKG(", i, ") Context broadcasted. Run protocol now...")
+		dkgSetup := monitor.NewTimeMeasure("dkg_setup")
+		dkgWait := monitor.NewTimeMeasure("dkg_wait")
 		if err := service.RunDKG(); err != nil {
 			log.Fatal(err)
 		}
+		dkgSetup.Record()
 		log.Lvl1("DKG(", i, ") Protocol DONE ! waiting all dkg done...")
 		if err := service.WaitDKGFinished(); err != nil {
 			log.Fatal(err)
 		}
+		dkgWait.Record()
+		tbls := monitor.NewTimeMeasure("tbls")
 		log.Lvl1("DKG (", i, ") ALL DONE !")
 		log.Lvl1("Start TBLS (", i, ") !")
 
 		msg := []byte("let's dfinityze the world")
 		_, err := service.RunTBLS(msg)
+		tbls.Record()
 		if err != nil {
 			log.Fatal(err)
 		}

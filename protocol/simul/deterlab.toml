@@ -1,12 +1,9 @@
 Simulation = "dfinity"
 Servers = 10
-Bf = 
+Hosts = 15
+Bf = 14
 Rounds = 2
-PreScript = "install_pbc.sh"
+PreScript = "install_pbc_deterlab.sh"
 
-Hosts,Bf, Threshold 
-5,4,3
-10,9,7
-15,14,10
-20,19,15
-30,29,25
+Threshold 
+10

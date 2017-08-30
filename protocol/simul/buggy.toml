@@ -1,0 +1,7 @@
+Simulation = "dfinity"
+Servers = 14
+Rounds = 2
+PreScript = "install_pbc.sh"
+
+Hosts,Bf, Threshold 
+14,13,13

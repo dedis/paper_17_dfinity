@@ -54,6 +54,7 @@ func NewService(c *onet.Context) onet.Service {
 // RunDKG will launch the DKG protocol with the context & roster set up before with
 // BroadcastPBContext.
 func (s *Service) RunDKG() error {
+	s.dks = nil
 	n := len(s.onetRoster.List)
 	tree := s.onetRoster.GenerateNaryTreeWithRoot(n-1, s.c.ServerIdentity())
 	tni := s.c.NewTreeNodeInstance(tree, tree.Root, DKGProtoName)
@@ -72,6 +73,8 @@ func (s *Service) RunDKG() error {
 		return err
 	}
 	go proto.Start()
+	go proto.Dispatch()
+	log.Lvl1("Root Service DKG.Start()")
 
 	select {
 	case _ = <-done:
@@ -246,6 +249,7 @@ func (s *Service) setupContext(c *PBCContext) {
 func (s *Service) NewProtocol(node *onet.TreeNodeInstance, c *onet.GenericConfig) (onet.ProtocolInstance, error) {
 	switch node.ProtocolName() {
 	case DKGProtoName:
+		s.dks = nil
 		log.LLvl2(s.c.String(), " -> NewProtocol DKG")
 		return NewDKGProtocolFromService(node, s.Context, s.dkgDone)
 	case TBLSProtoName:
