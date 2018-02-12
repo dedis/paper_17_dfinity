@@ -30,6 +30,10 @@ func TestService(t *testing.T) {
 
 	require.Nil(t, rootService.RunDKG())
 	require.Nil(t, rootService.WaitDKGFinished())
+
+	require.Nil(t, rootService.RunDKG())
+	require.Nil(t, rootService.WaitDKGFinished())
+
 	_, err := rootService.RunTBLS(msg)
 	require.Nil(t, err)
 }

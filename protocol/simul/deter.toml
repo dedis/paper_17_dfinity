@@ -1,0 +1,13 @@
+Login = "nikkolas"
+Host = "users.deterlab.net"
+Project = "SAFER"
+Experiment = "dfinity2"
+ProxyAddress = "localhost"
+MonitorAddress = "users.isi.deterlab.net"
+MonitorPort = 10000
+Servers = 10
+Simulation = "dfinity"
+Hosts = 15
+Debug = 0
+RunWait = 0
+PreScript = "install_pbc_deterlab.sh"

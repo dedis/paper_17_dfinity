@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/dedis/onet/log"
@@ -27,9 +28,7 @@ type DkgProto struct {
 	index             int
 	dkgDoneCb         func(*dkg.DistKeyShare)
 	list              []*onet.TreeNode // to avoid recomputing it
-	onDealCh          chan DealMsg
-	onResponseCh      chan ResponseMsg
-	onJustCh          chan JustificationMsg
+	tmpResponses      map[uint32][]*dkg.Response
 	responsesReceived int
 	sentDeal          bool
 	sync.Mutex
@@ -66,11 +65,9 @@ func NewDKGProtocolFromService(node *onet.TreeNodeInstance, c *PBCContext, cb fu
 		dkg:              dkgen,
 		dkgDoneCb:        cb,
 		list:             node.Tree().List(),
+		tmpResponses:     make(map[uint32][]*dkg.Response),
 	}
-	if node.RegisterChannels(&dp.onDealCh, &dp.onResponseCh, &dp.onJustCh); err != nil {
-		return nil, err
-	}
-	return dp, nil
+	return dp, dp.RegisterHandlers(dp.OnDeal, dp.OnResponse, dp.OnJustification)
 }
 
 func NewDKGProtocol(node *onet.TreeNodeInstance, t int, cb func(*dkg.DistKeyShare)) (*DkgProto, error) {
@@ -97,11 +94,9 @@ func NewDKGProtocol(node *onet.TreeNodeInstance, t int, cb func(*dkg.DistKeyShar
 		dkg:              dkgen,
 		dkgDoneCb:        cb,
 		list:             list,
+		tmpResponses:     make(map[uint32][]*dkg.Response),
 	}
-	if node.RegisterChannels(&dp.onDealCh, &dp.onResponseCh, &dp.onJustCh); err != nil {
-		return nil, err
-	}
-	return dp, nil
+	return dp, dp.RegisterHandlers(dp.OnDeal, dp.OnResponse, dp.OnJustification)
 }
 
 func (d *DkgProto) Start() error {
@@ -115,31 +110,31 @@ func (d *DkgProto) id() string {
 	return d.Name() + " ( " + strconv.Itoa(d.index) + " / " + strconv.Itoa(len(d.list)) + " ) "
 }
 
-func (d *DkgProto) Dispatch() error {
-	n := len(d.list)
-	for i := 0; i < n-1; i++ {
-		//log.Lvl1(d.id(), " <- d.onDealCh (", i, ") ...")
-		dm := <-d.onDealCh
-		if err := d.OnDeal(dm); err != nil {
-			log.Error(err)
-		}
-		log.Lvl1(d.id(), " <- d.onDealCh (", i, ") RECEIVED from ", dm.Deal.Index, ": Missing ", n-i-1, " deals!")
-		//log.Lvl1(d.id(), " <- d.onDealCh (", i, ") PROCESSED")
-	}
+/*func (d *DkgProto) Dispatch() error {*/
+//n := len(d.list)
+//for i := 0; i < n-1; i++ {
+////log.Lvl1(d.id(), " <- d.onDealCh (", i, ") ...")
+//dm := <-d.onDealCh
+//if err := d.OnDeal(dm); err != nil {
+//log.Error(err)
+//}
+//log.Lvl1(d.id(), " <- d.onDealCh (", i, ") RECEIVED from ", dm.Deal.Index, ": Missing ", n-i-1, " deals!")
+////log.Lvl1(d.id(), " <- d.onDealCh (", i, ") PROCESSED")
+//}
 
-	log.Lvl1(d.id(), " ---- DISPATCH DEAL DONE --- ")
-	for i := 0; i < n*(n-1); i++ {
-		rm := <-d.onResponseCh
-		if err := d.OnResponse(rm); err != nil {
-			log.Error(err)
-		}
-	}
-	log.Lvl1(d.id(), " ---- DISPATCH RESPONSES DONE --- ")
-	if !d.dkg.Certified() {
-		log.Error(d.Name(), "is finished but not DKG !!")
-	}
-	return nil
-}
+//log.Lvl1(d.id(), " ---- DISPATCH DEAL DONE --- ")
+//for i := 0; i < n*(n-1); i++ {
+//rm := <-d.onResponseCh
+//if err := d.OnResponse(rm); err != nil {
+//log.Error(err)
+//}
+//}
+//log.Lvl1(d.id(), " ---- DISPATCH RESPONSES DONE --- ")
+//if !d.dkg.Certified() {
+//log.Error(d.Name(), "is finished but not DKG !!")
+//}
+//return nil
+/*}*/
 
 func (d *DkgProto) OnDeal(dm DealMsg) error {
 	log.Lvl2(d.Name(), " received deal from ", dm.TreeNode.Name())
@@ -153,6 +148,7 @@ func (d *DkgProto) OnDeal(dm DealMsg) error {
 	}
 
 	resp, err := d.dkg.ProcessDeal(&dm.Deal)
+	defer d.processTmpResponses(&dm.Deal)
 	if err != nil {
 		d.Unlock()
 		return err
@@ -167,6 +163,24 @@ func (d *DkgProto) OnDeal(dm DealMsg) error {
 	return nil
 }
 
+func (d *DkgProto) processTmpResponses(deal *dkg.Deal) {
+	d.Lock()
+	defer d.checkCertified()
+	defer d.Unlock()
+	resps, ok := d.tmpResponses[deal.Index]
+	if !ok {
+		return
+	}
+	log.Lvl2(d.id(), "processing ", len(resps), " TEMP responses for dealer", deal.Index)
+	delete(d.tmpResponses, deal.Index)
+	for _, r := range resps {
+		_, err := d.dkg.ProcessResponse(r)
+		if err != nil {
+			log.Error(d.id(), ": err process temp response: ", err)
+		}
+	}
+}
+
 func (d *DkgProto) OnResponse(rm ResponseMsg) error {
 	d.Lock()
 	defer d.checkCertified()
@@ -175,6 +189,11 @@ func (d *DkgProto) OnResponse(rm ResponseMsg) error {
 
 	j, err := d.dkg.ProcessResponse(&rm.Response)
 	if err != nil {
+		if strings.Contains(err.Error(), "got no corresponding deal") {
+			d.tmpResponses[rm.Response.Index] = append(d.tmpResponses[rm.Response.Index], &rm.Response)
+			log.Lvl2(d.id(), "storing future response for unknown deal ", rm.Response.Index)
+			return nil
+		}
 		return err
 	}
 
@@ -206,7 +225,7 @@ func (d *DkgProto) sendDeals() error {
 			//log.Lvl1(d.id(), " -> not sending deal to ", i)
 			continue
 		}
-		log.LLvl2(d.Name(), "sending deal (", i, ") to ", l.Name(), ":", deal)
+		//log.LLvl2(d.Name(), "sending deal (", i, ") to ", l.Name(), ":", deal)
 		if err := d.SendTo(l, deal); err != nil {
 			log.Error(d.Info(), err)
 		}

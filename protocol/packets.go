@@ -2,10 +2,8 @@ package protocol
 
 import (
 	"errors"
-	"fmt"
 	"reflect"
 
-	"github.com/dedis/onet/log"
 	"github.com/dedis/paper_17_dfinity/bls"
 	"github.com/dedis/paper_17_dfinity/pedersen/dkg"
 	"github.com/dedis/protobuf"
@@ -101,14 +99,11 @@ func (p *DKGProxy) Unwrap(msg interface{}) (interface{}, *onet.OverlayMsg, error
 		return nil, nil, errors.New("dkgproxy: received non dkg packet")
 	}
 	var ret interface{}
-	var str string
 	switch dkgPacket.Type {
 	case DKGDeal:
 		ret = &dkg.Deal{}
-		str = "deal"
 	case DKGResponse:
 		ret = &dkg.Response{}
-		str = "response"
 	case DKGJust:
 		ret = &dkg.Justification{}
 	case DKGOm:
@@ -120,7 +115,7 @@ func (p *DKGProxy) Unwrap(msg interface{}) (interface{}, *onet.OverlayMsg, error
 	if err := decode(dkgPacket.Buff, ret, pairing.G2()); err != nil {
 		return nil, nil, err
 	}
-	log.LLvl4("DKGProxy: unwrapping ", str, fmt.Sprintf("%+v", ret))
+
 	return ret, dkgPacket.Om, nil
 }
 
@@ -199,11 +194,15 @@ func (p *TBLSProxy) PacketType() network.MessageTypeID {
 	return tblsPacketType
 }
 
-type DKGConfirmation struct{}
+type DKGConfirmation struct {
+	Public string
+}
 
 var dkgConfirmationType network.MessageTypeID
 
-type DKGAck struct{}
+type DKGAck struct {
+	Public string
+}
 
 var dkgAckType network.MessageTypeID
 

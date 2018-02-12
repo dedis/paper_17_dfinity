@@ -125,7 +125,7 @@ func (s *Service) RunTBLS(msg []byte) ([]byte, error) {
 func (s *Service) WaitDKGFinished() error {
 	for _, si := range s.onetRoster.List {
 		s.dkgWg.Add(1)
-		if err := s.c.SendRaw(si, &DKGConfirmation{}); err != nil {
+		if err := s.c.SendRaw(si, &DKGConfirmation{s.dksPublic()}); err != nil {
 			return err
 		}
 	}
@@ -210,9 +210,13 @@ func (s *Service) Process(p *network.Envelope) {
 			s.notify <- true
 		}
 	case *DKGConfirmation:
-		s.waitDKGConfirmation()
-		s.c.SendRaw(p.ServerIdentity, &DKGAck{})
+		s.waitDKGConfirmation(inner.Public)
+		s.c.SendRaw(p.ServerIdentity, &DKGAck{inner.Public})
 	case *DKGAck:
+		if s.dksPublic() != inner.Public {
+			log.Error("ServiceDKG: ACK mismatch between publics !!")
+			return
+		}
 		s.dkgWg.Done()
 	default:
 		panic("receiving unknown message")
@@ -226,12 +230,18 @@ func (s *Service) dkgDone(d *dkg.DistKeyShare) {
 	s.dksCond.Broadcast()
 }
 
-func (s *Service) waitDKGConfirmation() {
+func (s *Service) waitDKGConfirmation(id string) {
 	s.dksCond.L.Lock()
-	for s.dks == nil {
+	for s.dks == nil || s.dks.Polynomial().Commit().String() != id {
 		s.dksCond.Wait()
 	}
 	s.dksCond.L.Unlock()
+}
+
+func (s *Service) dksPublic() string {
+	s.dksCond.L.Lock()
+	defer s.dksCond.L.Unlock()
+	return s.dks.Polynomial().Commit().String()
 }
 
 func (s *Service) setupContext(c *PBCContext) {
